@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Layout, Menu, Typography, Input, Space, message } from 'antd';
+import { Layout, Menu, Typography, Input, Space, message, Button } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   PictureOutlined,
   UploadOutlined,
   BarChartOutlined
 } from '@ant-design/icons';
-import { setAdminToken } from '../services/api';
+import { setAdminToken, loginAsAdmin } from '../services/api';
 
 const { Header, Sider, Content } = Layout;
 
@@ -19,11 +19,37 @@ const items = [
 export const DashboardLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [token, setToken] = useState<string>((): string => {
-    if (typeof window === 'undefined') return '';
-    return window.localStorage.getItem('admin-token') ?? '';
+  const [password, setPassword] = useState('');
+  const [hasToken, setHasToken] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return Boolean(window.localStorage.getItem('admin-token'));
   });
   const [messageApi, contextHolder] = message.useMessage();
+
+  const handleLogin = async () => {
+    if (!password) {
+      messageApi.warning('请输入管理员密码');
+      return;
+    }
+    try {
+      const { token } = await loginAsAdmin(password);
+      setAdminToken(token);
+      setHasToken(true);
+      setPassword('');
+      messageApi.success('管理员登录成功');
+    } catch (error) {
+      setAdminToken('');
+      setHasToken(false);
+      setPassword('');
+      messageApi.error('管理员验证失败');
+    }
+  };
+
+  const handleLogout = () => {
+    setAdminToken('');
+    setHasToken(false);
+    messageApi.success('管理员已退出');
+  };
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -48,20 +74,23 @@ export const DashboardLayout = () => {
             <Typography.Title level={3} style={{ color: 'white', margin: 0 }}>
               Serverless Photo Gallery
             </Typography.Title>
-            <Input.Password
-              value={token}
-              onChange={(event) => setToken(event.target.value)}
-              onPressEnter={() => {
-                setAdminToken(token);
-                messageApi.success(token ? '管理员令牌已更新' : '管理员令牌已清除');
-              }}
-              onBlur={() => {
-                setAdminToken(token);
-                messageApi.success(token ? '管理员令牌已更新' : '管理员令牌已清除');
-              }}
-              placeholder="输入管理员密码"
-              style={{ width: 240 }}
-            />
+            <Space>
+              <Input.Password
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                onPressEnter={handleLogin}
+                placeholder="输入管理员密码"
+                style={{ width: 240 }}
+              />
+              <Button type="primary" onClick={handleLogin}>
+                登录
+              </Button>
+              {hasToken && (
+                <Button onClick={handleLogout} danger>
+                  退出
+                </Button>
+              )}
+            </Space>
           </Space>
         </Header>
         <Content style={{ margin: '24px', padding: '24px', background: 'rgba(15,23,42,0.65)', borderRadius: 16 }}>
