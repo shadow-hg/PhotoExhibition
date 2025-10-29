@@ -1,0 +1,36 @@
+{
+  "title": "Serverless Photo Gallery",
+  "subtitle": "无服务器摄影作品展示",
+  "actions": {
+    "download": "oss://photos/archive/latest.zip"
+  },
+  "gallery": [
+    {
+      "name": "旅行随拍",
+      "slug": "travel",
+      "description": "旅途中的美好瞬间",
+      "cover": "https://example.com/covers/travel.jpg",
+      "photos": [
+        {
+          "id": "demo-001",
+          "title": "蓝色海岸线",
+          "description": "巴塞罗那的日出",
+          "location": "西班牙",
+          "captureTime": "2023-09-10T05:32:00.000Z",
+          "camera": "Sony A7R IV",
+          "lens": "FE 24-70mm F2.8 GM",
+          "iso": 100,
+          "aperture": "8",
+          "shutter": "1/125s",
+          "focalLength": "35mm",
+          "ratio": 1.5,
+          "src": "https://example.com/photos/travel/blue-coast.jpg",
+          "thumbnail": "https://example.com/photos/travel/blue-coast-thumb.jpg",
+          "width": 3840,
+          "height": 2560
+        }
+      ]
+    }
+  ],
+  "updatedAt": "2024-01-01T00:00:00.000Z"
+}
