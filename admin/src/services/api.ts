@@ -31,6 +31,11 @@ export const bootstrapAdminToken = () => {
   }
 };
 
+export const loginAsAdmin = async (password: string) => {
+  const { data } = await client.post<{ token: string; expiresAt: string }>('/admin/login', { password });
+  return data;
+};
+
 export const fetchConfig = async () => {
   const { data } = await client.get<SiteConfig>('/getConfig');
   return data;

@@ -4,10 +4,29 @@ import sharp from 'sharp';
 import exifr from 'exifr';
 import type OSS from 'ali-oss';
 import type { PhotoMetadata } from '../types';
-import { createOSSClient } from '../utils/oss';
+import { createOSSClient, readJSON, writeJSON } from '../utils/oss';
 
 const ORIGINAL_PREFIX = 'photos';
 const THUMB_PREFIX = 'thumbs';
+const METADATA_PREFIX = 'metadata';
+const SIGNED_URL_TTL_SECONDS = 3600;
+
+interface StoredMetadata {
+  objectKey: string;
+  thumbnailKey: string;
+  sourceEtag?: string;
+  updatedAt: string;
+  data: Omit<PhotoMetadata, 'src' | 'thumbnail'>;
+}
+
+const getStatusCode = (error: unknown) =>
+  typeof error === 'object' && error && 'status' in error ? Number((error as { status?: number }).status) : 0;
+
+const signPhoto = (client: OSS, stored: StoredMetadata): PhotoMetadata => ({
+  ...stored.data,
+  src: client.signatureUrl(stored.objectKey, { expires: SIGNED_URL_TTL_SECONDS }),
+  thumbnail: client.signatureUrl(stored.thumbnailKey, { expires: SIGNED_URL_TTL_SECONDS })
+});
 
 const parseExifValue = (value: unknown) => (value == null ? undefined : String(value));
 
@@ -29,10 +48,12 @@ const normalizeExif = (exif: Record<string, unknown>): Partial<PhotoMetadata> =>
 };
 
 export const generateThumbnail = async (buffer: Buffer) => {
-  const transformer = sharp(buffer).resize(800, 800, {
-    fit: 'inside',
-    withoutEnlargement: true
-  });
+  const transformer = sharp(buffer)
+    .rotate()
+    .resize(800, 800, {
+      fit: 'inside',
+      withoutEnlargement: true
+    });
   const { width, height } = await transformer.metadata();
   const thumbnail = await transformer.jpeg({ quality: 80 }).toBuffer();
   return { thumbnail, width: width ?? 0, height: height ?? 0 };
@@ -40,54 +61,101 @@ export const generateThumbnail = async (buffer: Buffer) => {
 
 export const processUpload = async (objectKey: string, client?: OSS) => {
   const oss = client ?? createOSSClient();
-  const original = await oss.get(objectKey);
-  const buffer = original.content as Buffer;
-  const exif = ((await exifr.parse(buffer)) ?? {}) as Record<string, unknown>;
-  const thumb = await generateThumbnail(buffer);
-
   const relativePath = objectKey.startsWith(`${ORIGINAL_PREFIX}/`)
     ? objectKey.slice(ORIGINAL_PREFIX.length + 1)
     : objectKey;
 
   const thumbnailKey = path.join(THUMB_PREFIX, relativePath.replace(path.extname(relativePath), '.jpg'));
+  const metadataKey = path.join(METADATA_PREFIX, relativePath.replace(path.extname(relativePath), '.json'));
+
+  const head = await oss.head(objectKey);
+  const sourceEtagHeader = String(head.res.headers['etag'] ?? '').replace(/"/g, '').trim();
+  const sourceEtag = sourceEtagHeader || undefined;
+
+  let cached: StoredMetadata | null = null;
   try {
-    await oss.head(thumbnailKey);
+    cached = await readJSON<StoredMetadata>(oss, metadataKey);
   } catch (error) {
-    const status = typeof error === 'object' && error && 'status' in error ? Number((error as { status?: number }).status) : 0;
-    if (status !== 404) {
+    if (getStatusCode(error) !== 404) {
       throw error;
     }
-    await oss.put(thumbnailKey, thumb.thumbnail, {
-      headers: {
-        'Content-Type': 'image/jpeg'
-      }
-    });
   }
 
-  const id = relativePath.replace(/\.[^/.]+$/, '').replace(/[\/]/g, '-');
+  if (cached && cached.sourceEtag === sourceEtag) {
+    try {
+      await oss.head(cached.thumbnailKey);
+      return signPhoto(oss, cached);
+    } catch (error) {
+      if (getStatusCode(error) !== 404) {
+        throw error;
+      }
+    }
+  }
 
-  const metadata: PhotoMetadata = {
-    id: id || randomUUID(),
-    title: path.parse(relativePath).name,
-    src: oss.signatureUrl(objectKey, { expires: 3600 }),
-    thumbnail: oss.signatureUrl(thumbnailKey, { expires: 3600 }),
+  const original = await oss.get(objectKey);
+  const buffer = original.content as Buffer;
+  const exif = ((await exifr.parse(buffer)) ?? {}) as Record<string, unknown>;
+  const thumb = await generateThumbnail(buffer);
+
+  await oss.put(thumbnailKey, thumb.thumbnail, {
+    headers: {
+      'Content-Type': 'image/jpeg'
+    }
+  });
+
+  const baseId = cached?.data.id ?? relativePath.replace(/\.[^/.]+$/, '').replace(/[\/]/g, '-');
+
+  const normalized = normalizeExif(exif);
+  const mergedData: StoredMetadata['data'] = {
+    ...cached?.data,
+    id: baseId || randomUUID(),
+    title: cached?.data?.title ?? path.parse(relativePath).name,
     width: thumb.width,
     height: thumb.height,
-    ratio: thumb.height ? thumb.width / thumb.height : undefined,
-    ...normalizeExif(exif)
+    ratio: thumb.height ? thumb.width / thumb.height : undefined
   };
 
-  return metadata;
+  for (const [key, value] of Object.entries(normalized)) {
+    if (value !== undefined) {
+      (mergedData as Record<string, unknown>)[key] = value;
+    }
+  }
+
+  const stored: StoredMetadata = {
+    objectKey,
+    thumbnailKey,
+    sourceEtag,
+    updatedAt: new Date().toISOString(),
+    data: mergedData
+  };
+
+  await writeJSON(oss, metadataKey, stored);
+
+  return signPhoto(oss, stored);
 };
 
 export const getPhotosByGroup = async (slug: string) => {
   const client = createOSSClient();
   const result: PhotoMetadata[] = [];
-  const list = await client.list({ prefix: `${ORIGINAL_PREFIX}/${slug}` }, {});
-  for (const item of list.objects ?? []) {
-    if (!item.name) continue;
-    const metadata = await processUpload(item.name, client);
-    result.push(metadata);
+  let isTruncated = true;
+  let marker: string | undefined;
+
+  while (isTruncated) {
+    const list = await client.list({
+      prefix: `${ORIGINAL_PREFIX}/${slug}`,
+      marker,
+      'max-keys': 1000
+    });
+    for (const item of list.objects ?? []) {
+      if (!item.name) continue;
+      const metadata = await processUpload(item.name, client);
+      result.push(metadata);
+    }
+    isTruncated = Boolean(list.isTruncated);
+    marker = list.nextMarker || undefined;
+    if (!isTruncated) {
+      break;
+    }
   }
   return result;
 };

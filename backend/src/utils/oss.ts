@@ -40,22 +40,41 @@ export const readText = async (client: OSS, key: string) => {
   return result.content?.toString('utf-8') ?? '';
 };
 
+const getStatusCode = (error: unknown) =>
+  typeof error === 'object' && error && 'status' in error ? Number((error as { status?: number }).status) : 0;
+
 export const appendLog = async (client: OSS, key: string, payload: string) => {
-  let position = 0;
-  try {
-    const head = await client.head(key);
-    position = Number(head.res.headers['content-length'] ?? 0);
-  } catch (error) {
-    const status = typeof error === 'object' && error && 'status' in error ? Number((error as { status?: number }).status) : 0;
-    if (status !== 404) {
+  const buffer = Buffer.from(payload);
+  const maxAttempts = 5;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    let position = 0;
+    try {
+      const head = await client.head(key);
+      position = Number(head.res.headers['content-length'] ?? 0);
+    } catch (error) {
+      if (getStatusCode(error) !== 404) {
+        throw error;
+      }
+    }
+
+    try {
+      await client.append(key, buffer, {
+        position,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      return;
+    } catch (error) {
+      const status = getStatusCode(error);
+      if (status === 409 || status === 412) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 50));
+        continue;
+      }
       throw error;
     }
   }
 
-  await client.append(key, Buffer.from(payload), {
-    position,
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
+  throw new Error('Failed to append log after multiple attempts');
 };
