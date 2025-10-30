@@ -9,7 +9,7 @@ function Invoke-NpmBuild {
     )
 
     $targetPath = Join-Path $rootDir $SubDirectory
-    Write-Host "📁 切换到 $targetPath"
+    Write-Host "Switching to $targetPath"
 
     Push-Location $targetPath
     try {
@@ -25,7 +25,7 @@ Invoke-NpmBuild -SubDirectory 'frontend'
 Invoke-NpmBuild -SubDirectory 'admin'
 Invoke-NpmBuild -SubDirectory 'backend'
 
-Write-Host '✅ 构建完成。请使用阿里云 OSS & FC CLI 发布：'
+Write-Host 'Build complete. Please deploy with Aliyun OSS & FC CLI:'
 Write-Host '1. ossutil cp -r frontend/dist oss://<bucket>/site/'
 Write-Host '2. ossutil cp -r admin/dist oss://<bucket>/admin/'
-Write-Host '3. fun deploy 或 fcctl 部署 backend/dist'
+Write-Host '3. Run "fun deploy" or "fcctl" to deploy backend/dist'
