@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
 import type { GalleryConfig } from '../types/gallery';
+import axios from 'axios';
+import { apiClient } from '../lib/httpClient';
 
 interface UseSiteConfigResult {
   config: GalleryConfig | null;
@@ -16,8 +17,8 @@ export const useSiteConfig = (): UseSiteConfigResult => {
   useEffect(() => {
     const controller = new AbortController();
 
-    axios
-      .get<GalleryConfig>('/api/getConfig', { signal: controller.signal })
+    apiClient
+      .get<GalleryConfig>('/getConfig', { signal: controller.signal })
       .then((response) => {
         setConfig(response.data);
       })

@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
-import axios from 'axios';
+import { apiClient } from '../lib/httpClient';
 
 export const useTrackView = (page: string) => {
   useEffect(() => {
-    axios
-      .post('/api/track', {
+    apiClient
+      .post('/track', {
         page,
         timestamp: new Date().toISOString(),
         userAgent: navigator.userAgent
