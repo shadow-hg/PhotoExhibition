@@ -1,12 +1,15 @@
 import axios from 'axios';
 import type { SiteConfig, PhotoMetadata, LogEntry } from '../types';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
+const ADMIN_API_BASE_URL = import.meta.env.VITE_ADMIN_API_BASE_URL ?? '/api/admin';
+
 const client = axios.create({
-  baseURL: '/api'
+  baseURL: API_BASE_URL
 });
 
 const adminClient = axios.create({
-  baseURL: '/api/admin'
+  baseURL: ADMIN_API_BASE_URL
 });
 
 export const setAdminToken = (token: string) => {

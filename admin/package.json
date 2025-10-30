@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:windows": "vite --mode windows-local",
     "build": "vite build",
     "preview": "vite preview"
   },

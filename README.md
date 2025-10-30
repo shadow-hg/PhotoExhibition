@@ -36,6 +36,34 @@ cd admin && npm install && npm run dev
 
 前端默认端口 5173，后台 5174，均代理到后端 9000 端口。
 
+### Windows 本地测试模式
+
+若希望在 Windows 环境下模拟完整的本地部署（前后端全部运行在本机并通过 `http://localhost` 互通），可按以下步骤切换模式：
+
+1. 复制示例环境变量文件：
+
+   ```bash
+   cd frontend && cp .env.windows-local.example .env.windows-local
+   cd ../admin && cp .env.windows-local.example .env.windows-local
+   ```
+
+2. 启动本地后端（端口保持为 9000）：
+
+   ```bash
+   cd backend
+   npm install
+   npm run dev
+   ```
+
+3. 分别在 `frontend/` 与 `admin/` 目录执行：
+
+   ```bash
+   npm install
+   npm run dev:windows
+   ```
+
+Windows 本地测试模式仅影响开发环境下的代理与接口基地址，`npm run build` 仍会生成面向线上部署的纯静态产物，不会包含任何本地测试逻辑。
+
 ## 部署（阿里云）
 
 以下步骤假设你已经在阿里云开通了对象存储 OSS、函数计算 FC 以及自定义域名（或 API 网关）。
