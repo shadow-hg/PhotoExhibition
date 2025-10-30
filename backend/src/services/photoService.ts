@@ -1,10 +1,12 @@
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import sharp from 'sharp';
 import exifr from 'exifr';
 import type OSS from 'ali-oss';
 import type { PhotoMetadata } from '../types';
 import { createOSSClient, readJSON, writeJSON } from '../utils/oss';
+import { isLocalMode } from './runtime';
+import { readLocalBuffer, readLocalJSON, writeLocalBuffer, writeLocalJSON, listLocalFiles, toLocalStaticUrl } from './localFs';
 
 const ORIGINAL_PREFIX = 'photos';
 const THUMB_PREFIX = 'thumbs';
@@ -26,6 +28,12 @@ const signPhoto = (client: OSS, stored: StoredMetadata): PhotoMetadata => ({
   ...stored.data,
   src: client.signatureUrl(stored.objectKey, { expires: SIGNED_URL_TTL_SECONDS }),
   thumbnail: client.signatureUrl(stored.thumbnailKey, { expires: SIGNED_URL_TTL_SECONDS })
+});
+
+const buildLocalPhoto = (stored: StoredMetadata): PhotoMetadata => ({
+  ...stored.data,
+  src: toLocalStaticUrl(stored.objectKey),
+  thumbnail: toLocalStaticUrl(stored.thumbnailKey)
 });
 
 const parseExifValue = (value: unknown) => (value == null ? undefined : String(value));
@@ -59,7 +67,96 @@ export const generateThumbnail = async (buffer: Buffer) => {
   return { thumbnail, width: width ?? 0, height: height ?? 0 };
 };
 
+const normalizeObjectKey = (objectKey: string) => objectKey.replace(/\\/g, '/').replace(/^\/+/, '');
+
+const getRelativePath = (objectKey: string) => {
+  const normalized = normalizeObjectKey(objectKey);
+  if (normalized.startsWith(`${ORIGINAL_PREFIX}/`)) {
+    return normalized.slice(ORIGINAL_PREFIX.length + 1);
+  }
+  return normalized;
+};
+
+const ensureThumbnailKey = (relativePath: string) =>
+  path.posix.join(THUMB_PREFIX, relativePath.replace(/\.[^/.]+$/, '.jpg'));
+
+const ensureMetadataKey = (relativePath: string) =>
+  path.posix.join(METADATA_PREFIX, relativePath.replace(/\.[^/.]+$/, '.json'));
+
+const computeBufferHash = (buffer: Buffer) => createHash('sha1').update(buffer).digest('hex');
+
+const processUploadLocal = async (objectKey: string): Promise<PhotoMetadata> => {
+  const relativePath = getRelativePath(objectKey);
+  const normalizedRelative = relativePath.replace(/^\/+/, '');
+  const objectKeyWithPrefix = path.posix.join(ORIGINAL_PREFIX, normalizedRelative);
+
+  const original = await readLocalBuffer(objectKeyWithPrefix);
+  const sourceEtag = computeBufferHash(original);
+
+  const thumbnailKey = ensureThumbnailKey(normalizedRelative);
+  const metadataKey = ensureMetadataKey(normalizedRelative);
+
+  let cached: StoredMetadata | null = null;
+  try {
+    cached = await readLocalJSON<StoredMetadata>(metadataKey);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw error;
+    }
+  }
+
+  if (cached && cached.sourceEtag === sourceEtag) {
+    try {
+      await readLocalBuffer(cached.thumbnailKey);
+      return buildLocalPhoto(cached);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error;
+      }
+    }
+  }
+
+  const exif = ((await exifr.parse(original)) ?? {}) as Record<string, unknown>;
+  const thumb = await generateThumbnail(original);
+
+  await writeLocalBuffer(thumbnailKey, thumb.thumbnail);
+
+  const baseId = cached?.data.id ?? normalizedRelative.replace(/\.[^/.]+$/, '').replace(/[\/]/g, '-');
+
+  const normalized = normalizeExif(exif);
+  const mergedData: StoredMetadata['data'] = {
+    ...cached?.data,
+    id: baseId || randomUUID(),
+    title: cached?.data?.title ?? path.parse(normalizedRelative).name,
+    width: thumb.width,
+    height: thumb.height,
+    ratio: thumb.height ? thumb.width / thumb.height : undefined
+  };
+
+  for (const [key, value] of Object.entries(normalized)) {
+    if (value !== undefined) {
+      (mergedData as Record<string, unknown>)[key] = value;
+    }
+  }
+
+  const stored: StoredMetadata = {
+    objectKey: objectKeyWithPrefix.replace(/\\/g, '/'),
+    thumbnailKey: thumbnailKey.replace(/\\/g, '/'),
+    sourceEtag,
+    updatedAt: new Date().toISOString(),
+    data: mergedData
+  };
+
+  await writeLocalJSON(metadataKey, stored);
+
+  return buildLocalPhoto(stored);
+};
+
 export const processUpload = async (objectKey: string, client?: OSS) => {
+  if (isLocalMode()) {
+    return processUploadLocal(objectKey);
+  }
+
   const oss = client ?? createOSSClient();
   const relativePath = objectKey.startsWith(`${ORIGINAL_PREFIX}/`)
     ? objectKey.slice(ORIGINAL_PREFIX.length + 1)
@@ -135,6 +232,26 @@ export const processUpload = async (objectKey: string, client?: OSS) => {
 };
 
 export const getPhotosByGroup = async (slug: string) => {
+  if (isLocalMode()) {
+    const normalizedSlug = slug.replace(/\\/g, '/').replace(/^\/+/, '');
+    const metadataPrefix = path.posix.join(METADATA_PREFIX, normalizedSlug);
+    const files = await listLocalFiles(metadataPrefix);
+    const result: PhotoMetadata[] = [];
+
+    for (const file of files.filter((key) => key.endsWith('.json'))) {
+      try {
+        const metadata = await readLocalJSON<StoredMetadata>(file);
+        result.push(buildLocalPhoto(metadata));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          continue;
+        }
+        throw error;
+      }
+    }
+    return result;
+  }
+
   const client = createOSSClient();
   const result: PhotoMetadata[] = [];
   let isTruncated = true;

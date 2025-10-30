@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import type OSS from 'ali-oss';
 import type { SiteConfig } from '../types';
 import { createOSSClient, readJSON, writeJSON } from '../utils/oss';
+import { isLocalMode } from './runtime';
 
 const CONFIG_PATH = process.env.SITE_CONFIG_PATH ?? 'config/site_config.json';
 
@@ -32,6 +33,13 @@ const writeLocalConfig = async (config: SiteConfig) => {
 };
 
 export const getConfig = async (client?: OSS): Promise<SiteConfig> => {
+  if (isLocalMode()) {
+    const config = await readLocalConfig();
+    cachedConfig = config;
+    lastEtag = computeHash(config);
+    return config;
+  }
+
   try {
     const oss = client ?? createOSSClient();
     const config = await readJSON<SiteConfig>(oss, CONFIG_PATH);
@@ -59,6 +67,13 @@ export const getCachedConfig = async () => {
 };
 
 export const updateConfig = async (config: SiteConfig) => {
+  if (isLocalMode()) {
+    await writeLocalConfig(config);
+    cachedConfig = config;
+    lastEtag = computeHash(config);
+    return config;
+  }
+
   try {
     const oss = createOSSClient();
     await writeJSON(oss, CONFIG_PATH, config);

@@ -1,112 +1,135 @@
 # Serverless Photo Gallery
 
-基于阿里云函数计算（FC）+ OSS + React 的无服务器摄影作品展示平台。项目包含三部分：
+PhotoExhibition brings together three TypeScript projects to showcase and curate photos via a serverless backend on Alibaba Cloud. The repository bundles:
 
-- **frontend/**：React + TypeScript + Vite 展示站点，支持懒加载、Lightbox、PWA
-- **backend/**：Node.js 云函数，负责配置读取、EXIF 解析、缩略图生成、访问追踪等
-- **admin/**：React + Ant Design 后台，提供配置管理、上传处理与日志查看
+- `frontend/` – Vite + React gallery application (PWA ready).
+- `admin/` – Vite + React + Ant Design admin console for managing site content.
+- `backend/` – Express app compiled for Function Compute (FC); handles config, EXIF parsing, thumbnail generation, and logging.
 
-## 快速开始
+## Runtime Modes
 
-1. 设置环境变量：
+The backend can flip between two execution modes to match your environment:
 
-```bash
-export OSS_ACCESS_KEY_ID=...
-export OSS_ACCESS_KEY_SECRET=...
-export OSS_BUCKET=...
-export OSS_REGION=...
-export ADMIN_PASSWORD_HASH=$(echo -n "your-admin-password" | sha256sum | awk '{print $1}')
-export DOWNLOAD_PASSWORD_HASH=$(echo -n "your-download-password" | sha256sum | awk '{print $1}')
+- **Cloud mode** (default) – `RUNTIME_MODE=cloud` or unset. All config, photo processing, and logs are handled through OSS and FC. Expect the traditional serverless flow.
+- **Local mode** – `RUNTIME_MODE=local`. Every operation stays on disk; no OSS credentials are required. Data is stored beneath `storage/` (ignored by git) or a custom location supplied via `LOCAL_DATA_ROOT`.
+
+If you leave `RUNTIME_MODE` unset, the backend will automatically fall back to **local** mode whenever the mandatory OSS credentials are missing, so a plain `npm run dev` works out-of-the-box.
+
+When `deploy.ps1` starts the dev servers it automatically sets `RUNTIME_MODE=local` for the backend so that frontends and API run entirely on your machine.
+
+Local mode uses the following layout:
+
+```
+storage/
+  photos/      # place originals here (matching the OSS photos/ structure)
+  thumbs/      # generated automatically
+  metadata/    # generated automatically
+  logs/        # request tracking (e.g. /api/track)
 ```
 
-2. 启动后端（本地调试）：
+- Admin upload continues to accept `photos/...` object keys and reads from `storage/photos/...`.
+- Track logs and `/admin/listLogs` read/write `storage/logs/access.log`.
+- `config/site_config.json` remains the source of truth; updates persist to the same file.
+- `config.actions.download` accepts:
+  - absolute URLs (`https://...`);
+  - `local://relative/path.zip` (served as `/static/relative/path.zip`);
+  - plain relative paths (also mapped to `/static/...`).
+  `oss://` URLs are only valid in cloud mode.
 
-```bash
-cd backend
-npm install
-npm run dev
-```
+Cloud deployments keep the previous behaviour—no extra configuration needed.
 
-3. 启动前端展示与后台：
+## Quick Start (Local Stack)
 
-```bash
-cd frontend && npm install && npm run dev
-cd admin && npm install && npm run dev
-```
-
-前端默认端口 5173，后台 5174，均代理到后端 9000 端口。
-
-### Windows 本地测试模式
-
-若希望在 Windows 环境下模拟完整的本地部署（前后端全部运行在本机并通过 `http://localhost` 互通），可按以下步骤切换模式：
-
-1. 复制示例环境变量文件：
-
+1. **Install dependencies**
    ```bash
-   cd frontend && cp .env.windows-local.example .env.windows-local
-   cd ../admin && cp .env.windows-local.example .env.windows-local
+   npm install --prefix frontend
+   npm install --prefix admin
+   npm install --prefix backend
    ```
+2. **Run the helper script (recommended)**
+   ```powershell
+   # Windows PowerShell
+   ./deploy.ps1
+   ```
+   The script builds each workspace and launches:
+   - frontend dev server (default port 5173)
+   - admin dev server (default port 5174)
+   - backend dev server on a free port (defaults to 9000) with `RUNTIME_MODE=local`
 
-2. 启动本地后端（端口保持为 9000）：
+   Ports are auto-adjusted if conflicts are detected; the console prints the actual URLs.
 
+3. **Manual alternative**
    ```bash
+   # terminal 1
    cd backend
-   npm install
+   set RUNTIME_MODE=local # PowerShell: $env:RUNTIME_MODE='local'
+   npm run dev
+
+   # terminal 2
+   cd frontend
+   npm run dev
+
+   # terminal 3
+   cd admin
    npm run dev
    ```
 
-3. 分别在 `frontend/` 与 `admin/` 目录执行：
+### Windows Dev Environment Notes
 
+For explicit Windows configs, copy the provided examples:
+
+```powershell
+cd frontend; copy .env.windows-local.example .env.windows-local
+cd ../admin; copy .env.windows-local.example .env.windows-local
+```
+
+They bind Vite’s proxy to `http://localhost:9000`. Use `npm run dev:windows` if you prefer the dedicated mode; otherwise `npm run dev` works with the defaults.
+
+## Deploying to Alibaba Cloud
+
+1. **Export secrets and hashes**
    ```bash
-   npm install
-   npm run dev:windows
+   export OSS_ACCESS_KEY_ID=...
+   export OSS_ACCESS_KEY_SECRET=...
+   export OSS_BUCKET=...
+   export OSS_REGION=...
+   export ADMIN_PASSWORD_HASH=$(echo -n "your-admin-password" | sha256sum | awk '{print $1}')
+   export DOWNLOAD_PASSWORD_HASH=$(echo -n "your-download-password" | sha256sum | awk '{print $1}')
    ```
 
-Windows 本地测试模式仅影响开发环境下的代理与接口基地址，`npm run build` 仍会生成面向线上部署的纯静态产物，不会包含任何本地测试逻辑。
+2. **Build artefacts**
+   ```bash
+   ./deploy.sh
+   # or run npm install && npm run build within each workspace
+   ```
 
-## 部署（阿里云）
+3. **Upload static bundles to OSS**
+   ```bash
+   ossutil cp -r frontend/dist/ oss://<bucket>/site/
+   ossutil cp -r admin/dist/ oss://<bucket>/admin/
+   ```
 
-以下步骤假设你已经在阿里云开通了对象存储 OSS、函数计算 FC 以及自定义域名（或 API 网关）。
+4. **Deploy backend**
+   ```bash
+   cd backend
+   npm run build
+   fcctl function update --service-name <service> \
+     --function-name <function> --runtime nodejs18 \
+     --handler index.handler --code-dir dist
+   ```
+   Configure the same environment variables (plus an optional `SITE_CONFIG_PATH`) inside FC.
 
-1. **准备工具与凭证**
-   - 在本地安装 [ossutil](https://help.aliyun.com/zh/oss/developer-reference/ossutil-overview)、[fcctl](https://help.aliyun.com/zh/functioncompute/product-overview/fcctl-introduction) 或 [Funcraft/fun](https://help.aliyun.com/zh/functioncompute/getting-started/deploy-your-first-function-with-fun) 等部署工具，并执行 `ossutil config`、`fcctl configure` 完成 AccessKey 绑定。
-   - 在 OSS 中创建用于托管静态站点的 Bucket（例如 `photo-gallery-prod`，建议开启静态网站托管或绑定 CDN 加速域名）。
-   - 在函数计算中创建服务（如 `photo-gallery-service`），并在其中预先创建一个 HTTP 触发的函数（运行时选择 Node.js 18+，触发器可设为“允许匿名访问”）。
+5. **Wire routing**
+   - Bind an HTTP trigger to the Function Compute entrypoint.
+   - Route `/api/*` to the trigger domain, and serve static assets from OSS (or CDN).
 
-2. **本地构建三套前端/后端产物**
-   - 执行仓库根目录下的 `./deploy.sh`。脚本会在 `frontend/dist`、`admin/dist`、`backend/dist` 生成静态资源与云函数产物。
-   - 如果更倾向于手动构建，可在每个子目录内执行 `npm install && npm run build`。
+6. **Smoke test**
+   - Visit the gallery domain.
+   - Sign into `/admin/` with the hashed admin password.
+   - Confirm upload/thumbnail generation and logging via OSS.
 
-3. **上传静态资源到 OSS**
-   - 使用 ossutil 将前台与后台管理的静态文件上传至 Bucket：
-     ```bash
-     ossutil cp -r frontend/dist/ oss://<your-bucket>/site/
-     ossutil cp -r admin/dist/ oss://<your-bucket>/admin/
-     ```
-   - 若使用静态网站托管，请在 OSS 控制台将默认首页设置为 `index.html`，并为后台管理目录配置访问子路径（例如 `/admin/`）。
+## Configuration
 
-4. **部署后端函数**
-   - 将 `backend/dist` 目录打包：`cd backend/dist && zip -r ../backend.zip .`。
-   - 使用 fcctl/fun 部署，例如：
-     ```bash
-     cd backend
-     fcctl function update --service-name photo-gallery-service \
-       --function-name api --runtime nodejs18 \
-       --handler index.handler --code-dir dist
-     ```
-   - 在函数计算控制台或 CLI 中写入必要的环境变量（即上文“快速开始”章节列出的变量），并将 `SITE_CONFIG_PATH` 指向 OSS 中的配置文件。
+`config/site_config.json` provides the gallery description, album metadata, and action links. The backend caches the file but will re-read whenever you update it (either locally or via OSS in cloud mode).
 
-5. **配置触发器与域名**
-   - 若函数未绑定 HTTP 触发器，可在控制台选择“HTTP 触发器”，路径设为 `/` 并开启 `GET/POST` 权限。
-   - 可选：在自定义域名或阿里云 CDN 中添加一条路由，将 `/api/*` 指向函数计算触发域名，其余静态请求指向 OSS。（也可以在前端 `config/site_config.json` 中直接写入函数触发域名。）
-
-6. **验收**
-   - 访问 `https://<your-frontend-domain>/` 检查展示页是否能正确加载数据。
-   - 访问 `https://<your-frontend-domain>/admin/` 并输入管理员密码，确认后台能够通过 API 与函数计算通信。
-   - 可在 FC/OSS 控制台中查看调用日志与计量，确保资源使用符合预期。
-
-> 小贴士：部署流程稳定后，可将上述 CLI 命令写入 CI/CD（例如 GitHub Actions），自动触发 `deploy.sh` 构建并发布到 OSS/FC。
-
-## 配置
-
-全局配置存储于 OSS `config/site_config.json`，示例见 `config/site_config.json` 文件。所有数据均采用 JSON，无需数据库。
+For production, keep the config in OSS (set `SITE_CONFIG_PATH`) and populate the required hashes/environment variables. In local mode the same file is read from disk and writes are persisted immediately.

@@ -1,10 +1,12 @@
-import express from 'express';
+﻿import express from 'express';
 import CryptoJS from 'crypto-js';
 import { randomUUID } from 'node:crypto';
 import { createOSSClient, appendLog, readText } from '../utils/oss';
 import { getConfig, getCachedConfig, updateConfig } from '../services/configService';
 import { getPhotosByGroup, processUpload } from '../services/photoService';
 import type { SiteConfig, TrackPayload } from '../types';
+import { isLocalMode } from '../services/runtime';
+import { appendLocalLog, readLocalText, toLocalStaticUrl } from '../services/localFs';
 
 const router = express.Router();
 
@@ -100,12 +102,12 @@ router.get('/getPhotos', async (req, res) => {
 
 router.post('/verify', async (req, res) => {
   if (!isValidHash(DOWNLOAD_HASH)) {
-    return res.status(500).json({ message: 'DOWNLOAD_PASSWORD_HASH 未配置' });
+    return res.status(500).json({ message: 'DOWNLOAD_PASSWORD_HASH is not configured' });
   }
 
   const { password } = req.body as { password?: string };
   if (!password) {
-    return res.status(400).json({ valid: false, message: '缺少密码' });
+    return res.status(400).json({ valid: false, message: 'Missing password' });
   }
 
   const valid = hashText(password) === DOWNLOAD_HASH;
@@ -113,39 +115,64 @@ router.post('/verify', async (req, res) => {
     return res.status(401).json({ valid: false });
   }
 
-  const oss = createOSSClient();
   const config = await getCachedConfig();
   const download = config.actions?.download;
 
   if (!download) {
-    return res.status(404).json({ valid: true, message: '未配置下载链接' });
+    return res.status(404).json({ valid: true, message: 'Download link is not configured' });
   }
 
-  const signedUrl = download.startsWith('oss://')
+  const normalizedDownload = download.replace(/\\/g, '/');
+
+  if (isLocalMode()) {
+    const hasProtocol = /^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//.test(normalizedDownload);
+    const localPrefix = 'local://';
+
+    if (normalizedDownload.startsWith('oss://')) {
+      return res.status(400).json({
+        valid: true,
+        message: 'Local mode does not support oss:// download targets. Use a relative path or explicit URL.'
+      });
+    }
+
+    const resolved = normalizedDownload.startsWith(localPrefix)
+      ? toLocalStaticUrl(normalizedDownload.slice(localPrefix.length))
+      : hasProtocol
+      ? normalizedDownload
+      : toLocalStaticUrl(normalizedDownload);
+
+    return res.json({ valid: true, url: resolved });
+  }
+
+  const oss = createOSSClient();
+  const signedUrl = normalizedDownload.startsWith('oss://')
     ? (() => {
-        const [, path = ''] = download.replace('oss://', '').split(/\/(.+)/);
-        return oss.signatureUrl(path ?? '');
+        const [, pathPart = ''] = normalizedDownload.replace('oss://', '').split(/\/(.+)/);
+        return oss.signatureUrl(pathPart ?? '');
       })()
-    : download;
+    : normalizedDownload;
 
   res.json({ valid: true, url: signedUrl });
 });
 
 router.post('/track', async (req, res) => {
   try {
-    const client = createOSSClient();
     const payload = {
       ...req.body,
       ip: req.headers['x-forwarded-for'] ?? req.socket.remoteAddress,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
-    await appendLog(client, 'logs/access.log', `${JSON.stringify(payload)}\n`);
+    if (isLocalMode()) {
+      await appendLocalLog('logs/access.log', `${JSON.stringify(payload)}\n`);
+    } else {
+      const client = createOSSClient();
+      await appendLog(client, 'logs/access.log', `${JSON.stringify(payload)}\n`);
+    }
     res.status(204).end();
   } catch (error) {
     res.status(500).json({ message: (error as Error).message });
   }
 });
-
 router.post('/admin/login', (req, res) => {
   if (!isValidHash(ADMIN_HASH)) {
     return res.status(500).json({ message: 'ADMIN_PASSWORD_HASH 未配置' });
@@ -195,8 +222,9 @@ router.post('/admin/updateConfig', requireAdmin, async (req, res) => {
 
 router.get('/admin/listLogs', requireAdmin, async (req, res) => {
   try {
-    const client = createOSSClient();
-    const content = await readText(client, 'logs/access.log');
+    const content = isLocalMode()
+      ? await readLocalText('logs/access.log')
+      : await readText(createOSSClient(), 'logs/access.log');
     const lines = content
       .trim()
       .split('\n')
@@ -208,5 +236,6 @@ router.get('/admin/listLogs', requireAdmin, async (req, res) => {
     res.status(500).json({ message: (error as Error).message });
   }
 });
-
 export default router;
+
+
