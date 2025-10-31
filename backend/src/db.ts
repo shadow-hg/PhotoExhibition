@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { hashPassword } from './utils/auth';
 
 const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) {
@@ -78,5 +79,18 @@ CREATE TABLE IF NOT EXISTS contact_messages (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `);
+
+const DEFAULT_ADMIN_USERNAME = process.env.DEFAULT_ADMIN_USERNAME ?? 'curator';
+const DEFAULT_ADMIN_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD ?? 'visionary123';
+
+const existingAdmin = db
+  .prepare('SELECT id FROM admins WHERE username = ?')
+  .get(DEFAULT_ADMIN_USERNAME) as { id: number } | undefined;
+
+if (!existingAdmin) {
+  const passwordHash = hashPassword(DEFAULT_ADMIN_PASSWORD);
+  db.prepare('INSERT INTO admins (username, password_hash) VALUES (?, ?)').run(DEFAULT_ADMIN_USERNAME, passwordHash);
+  console.log(`✅ 默认管理员账号已创建: ${DEFAULT_ADMIN_USERNAME}`);
+}
 
 export default db;

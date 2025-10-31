@@ -7,8 +7,6 @@ import clsx from 'clsx';
 const navigation = [
   { name: '首页', to: '/' },
   { name: '作品集', to: '/gallery' },
-  { name: '展览计划', to: '/exhibitions' },
-  { name: '关于我', to: '/about' },
   { name: '后台管理', to: '/admin' },
 ];
 
@@ -45,13 +43,7 @@ export default function Navbar() {
                 </NavLink>
               ))}
             </div>
-            <div className="flex items-center space-x-4">
-              <a
-                href="#contact"
-                className="hidden rounded-full bg-gradient-to-r from-sky-400 via-indigo-400 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-aurora transition hover:scale-[1.02] md:inline-flex"
-              >
-                预约影展
-              </a>
+            <div className="flex items-center">
               <Disclosure.Button className="inline-flex items-center justify-center rounded-md p-2 text-slate-300 hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 md:hidden">
                 <span className="sr-only">打开导航</span>
                 {open ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
