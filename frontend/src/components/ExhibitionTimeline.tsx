@@ -1,5 +1,6 @@
 import { Exhibition } from '../types/api';
 import { format } from 'date-fns';
+import { buildImageSrc } from '../utils/images';
 
 interface ExhibitionTimelineProps {
   exhibitions?: Exhibition[];
@@ -42,7 +43,7 @@ export default function ExhibitionTimeline({ exhibitions }: ExhibitionTimelinePr
                 </div>
                 {exhibition.heroImageUrl && (
                   <img
-                    src={`${exhibition.heroImageUrl}&auto=format&fit=crop&w=800&q=80`}
+                    src={buildImageSrc(exhibition.heroImageUrl, { width: 800, quality: 80, fit: 'crop' })}
                     alt={exhibition.title}
                     className="h-32 w-full rounded-2xl object-cover lg:w-64"
                   />

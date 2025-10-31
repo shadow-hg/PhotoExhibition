@@ -1,6 +1,7 @@
 import { Photo } from '../types/api';
 import { PhotoProvider, PhotoView } from 'react-photo-view';
 import 'react-photo-view/dist/react-photo-view.css';
+import { buildImageSrc } from '../utils/images';
 
 interface MasonryGalleryProps {
   photos?: Photo[];
@@ -21,7 +22,7 @@ export default function MasonryGallery({ photos }: MasonryGalleryProps) {
           >
             <PhotoView src={photo.imageUrl}>
               <img
-                src={`${photo.imageUrl}&auto=format&fit=crop&w=900&q=80`}
+                src={buildImageSrc(photo.imageUrl, { width: 900, quality: 80, fit: 'crop' })}
                 alt={photo.title}
                 className="w-full cursor-zoom-in object-cover"
                 loading="lazy"

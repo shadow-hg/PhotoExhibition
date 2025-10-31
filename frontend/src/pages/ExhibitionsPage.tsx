@@ -1,6 +1,7 @@
 import { useExhibitions } from '../api/hooks';
 import { format } from 'date-fns';
 import ContactSection from '../components/ContactSection';
+import { buildImageSrc } from '../utils/images';
 
 export default function ExhibitionsPage() {
   const { data: exhibitions } = useExhibitions();
@@ -20,7 +21,7 @@ export default function ExhibitionsPage() {
             <article key={exhibition.id} className="overflow-hidden rounded-3xl border border-white/10 bg-slate-900/60 shadow-aurora">
               {exhibition.heroImageUrl && (
                 <img
-                  src={`${exhibition.heroImageUrl}&auto=format&fit=crop&w=1400&q=80`}
+                  src={buildImageSrc(exhibition.heroImageUrl, { width: 1400, quality: 80, fit: 'crop' })}
                   alt={exhibition.title}
                   className="h-56 w-full object-cover"
                 />

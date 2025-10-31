@@ -1,5 +1,6 @@
 import { Collection } from '../types/api';
 import { motion } from 'framer-motion';
+import { buildImageSrc } from '../utils/images';
 
 interface CollectionsShowcaseProps {
   collections?: Collection[];
@@ -36,7 +37,7 @@ export default function CollectionsShowcase({ collections }: CollectionsShowcase
           >
             {collection.heroImageUrl && (
               <img
-                src={`${collection.heroImageUrl}&auto=format&fit=crop&w=1200&q=80`}
+                src={buildImageSrc(collection.heroImageUrl, { width: 1200, quality: 80, fit: 'crop' })}
                 alt={collection.name}
                 className="h-48 w-full object-cover"
               />
@@ -52,7 +53,7 @@ export default function CollectionsShowcase({ collections }: CollectionsShowcase
                   {collection.photos.slice(0, 3).map((photo) => (
                     <img
                       key={photo.id}
-                      src={photo.imageUrl}
+                      src={buildImageSrc(photo.imageUrl, { width: 200, quality: 70, fit: 'crop' })}
                       alt={photo.title}
                       className="h-12 w-12 rounded-full border-2 border-slate-900 object-cover"
                     />

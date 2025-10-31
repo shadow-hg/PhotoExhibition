@@ -1,6 +1,43 @@
+import fs from 'fs';
+import path from 'path';
 import db from '../db';
 import { mapCollection, mapExhibition, mapMessage, mapPhoto } from '../utils/transformers';
 import { Collection, ContactMessage, Exhibition, GalleryStats, Photo } from '../types';
+import { getSettings } from '../config';
+
+const settings = getSettings();
+const SUPPORTED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff', '.avif']);
+const LOCAL_PHOTOS_DIRECTORY = path.resolve(__dirname, '..', '..', 'storage', 'photos');
+const LOCAL_MEDIA_PREFIX = settings.media.publicPath.startsWith('/')
+  ? settings.media.publicPath
+  : `/${settings.media.publicPath}`;
+
+export interface ImportLocalPhotosResult {
+  totalFiles: number;
+  imported: Photo[];
+  skipped: Array<{ file: string; reason: string }>;
+}
+
+function getLocalPhotosDirectory(): string {
+  return LOCAL_PHOTOS_DIRECTORY;
+}
+
+function formatTitleFromFilename(filename: string): string {
+  const nameWithoutExtension = filename.replace(/\.[^/.]+$/, '');
+  const withSpaces = nameWithoutExtension.replace(/[_-]+/g, ' ').trim();
+  if (!withSpaces) {
+    return filename;
+  }
+  return withSpaces
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function buildRelativeMediaPath(filename: string): string {
+  return `${LOCAL_MEDIA_PREFIX}/${filename}`;
+}
 
 export interface PhotoFilters {
   featured?: boolean;
@@ -124,6 +161,86 @@ export function updatePhoto(id: number, input: Partial<Photo>): Photo | null {
 
 export function deletePhoto(id: number): void {
   db.prepare('DELETE FROM photos WHERE id = ?').run(id);
+}
+
+export function importLocalPhotos(): ImportLocalPhotosResult {
+  const directory = getLocalPhotosDirectory();
+  if (!fs.existsSync(directory)) {
+    throw new Error(`Photo storage directory not found: ${directory}`);
+  }
+
+  const entries = fs.readdirSync(directory);
+  const files = entries.filter((entry) => {
+    const fullPath = path.join(directory, entry);
+    try {
+      return fs.statSync(fullPath).isFile();
+    } catch {
+      return false;
+    }
+  });
+
+  const imported: Photo[] = [];
+  const skipped: Array<{ file: string; reason: string }> = [];
+  const existingStmt = db.prepare('SELECT id FROM photos WHERE image_url = ?');
+
+  const processFiles = db.transaction((fileList: string[]) => {
+    fileList.forEach((file) => {
+      const baseName = path.basename(file);
+
+      if (baseName.startsWith('.')) {
+        skipped.push({ file: baseName, reason: 'hidden file ignored' });
+        return;
+      }
+
+      const extension = path.extname(baseName).toLowerCase();
+      if (!SUPPORTED_IMAGE_EXTENSIONS.has(extension)) {
+        skipped.push({ file: baseName, reason: `unsupported file extension (${extension || 'unknown'})` });
+        return;
+      }
+
+      const relativePath = buildRelativeMediaPath(baseName);
+      const existing = existingStmt.get(relativePath) as { id: number } | undefined;
+      if (existing) {
+        skipped.push({ file: baseName, reason: 'already imported' });
+        return;
+      }
+
+      const fullPath = path.join(directory, baseName);
+      let takenAt: string | undefined;
+      try {
+        const stats = fs.statSync(fullPath);
+        const dateSource = stats.birthtime || stats.mtime;
+        if (dateSource) {
+          takenAt = dateSource.toISOString().split('T')[0];
+        }
+      } catch {
+        takenAt = undefined;
+      }
+
+      try {
+        const photo = createPhoto({
+          title: formatTitleFromFilename(baseName),
+          description: '',
+          imageUrl: relativePath,
+          tags: [],
+          takenAt,
+          isFeatured: false,
+        });
+        imported.push(photo);
+      } catch (error: any) {
+        skipped.push({ file: baseName, reason: error?.message ?? 'failed to import' });
+      }
+    });
+  });
+
+  const sortedFiles = files.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+  processFiles(sortedFiles);
+
+  return {
+    totalFiles: files.length,
+    imported,
+    skipped,
+  };
 }
 
 export function incrementPhotoView(id: number): void {

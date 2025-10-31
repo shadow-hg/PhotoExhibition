@@ -1,0 +1,15 @@
+﻿{
+    "backend":  {
+                    "host":  "localhost",
+                    "port":  9002,
+                    "publicBaseUrl":  "http://localhost:9002"
+                },
+    "frontend":  {
+                     "devHost":  "localhost",
+                     "devPort":  6668,
+                     "publicBaseUrl":  "http://localhost:6668"
+                 },
+    "media":  {
+                  "publicPath":  "/media/photos"
+              }
+}

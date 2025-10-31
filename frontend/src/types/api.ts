@@ -61,6 +61,12 @@ export interface StatsResponse {
   latestPhotos: Photo[];
   featured: Photo[];
 }
+
+export interface BulkImportResult {
+  totalFiles: number;
+  imported: Photo[];
+  skipped: Array<{ file: string; reason: string }>;
+}
 export type CollectionPayload = Partial<Collection> & { photoIds?: number[] };
 export type PhotoPayload = Partial<Photo>;
 export type ExhibitionPayload = Partial<Exhibition>;

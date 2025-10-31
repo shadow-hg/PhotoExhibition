@@ -32,21 +32,32 @@ npm run seed
 > 默认管理员账号：`curator`，密码：`visionary123`
 
 ### 启动服务
+启动前可以根据需要调整 `config/settings.json` 中的主机与端口（默认配置如下）：
+
+```json
+{
+  "backend": { "host": "localhost", "port": 9000, "publicBaseUrl": "http://localhost:9000" },
+  "frontend": { "devHost": "localhost", "devPort": 6666, "publicBaseUrl": "http://localhost:6666" },
+  "media": { "publicPath": "/media/photos" }
+}
+```
+
+随后执行：
 ```bash
-# 启动后端 API（默认端口 4000）
+# 启动后端 API
 cd backend
 npm run dev
 
-# 启动前端（默认端口 5173）
+# 启动前端
 cd ../frontend
 npm run dev
 ```
 
-前端已配置 `/api` 代理指向本地 4000 端口。访问 `http://localhost:5173` 即可体验网站。
+前端开发服务器会读取上述配置文件中的 `frontend.devHost` 与 `frontend.devPort`，并将 `/api` 代理到 `backend.publicBaseUrl`。
 
 ### Windows 一键启动脚本
 
-若使用 Windows，可在项目根目录的 PowerShell 中运行 `./Start-PhotoExhibition.ps1`，脚本会自动检测端口占用并分别在 `9000`（后端）与 `6666`（前端）端口上启动开发服务器。如需调整端口，可通过参数传入，例如：
+若使用 Windows，可在项目根目录的 PowerShell 中运行 `./Start-PhotoExhibition.ps1`，脚本会读取 `config/settings.json` 中的主机与端口并自动检测占用情况。如需在运行时临时覆盖端口，可通过参数传入，例如：
 
 ```powershell
 ./Start-PhotoExhibition.ps1 -BackendPort 9100 -FrontendPort 6700

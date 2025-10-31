@@ -6,6 +6,7 @@ import {
   getPhotoById,
   getPhotos,
   incrementPhotoView,
+  importLocalPhotos,
   updatePhoto,
 } from '../services/galleryService';
 
@@ -81,4 +82,17 @@ adminPhotosRouter.put('/:id', (req, res) => {
 adminPhotosRouter.delete('/:id', (req, res) => {
   deletePhoto(Number(req.params.id));
   res.status(204).end();
+});
+
+adminPhotosRouter.post('/import-local', (req, res) => {
+  try {
+    const summary = importLocalPhotos();
+    res.status(200).json(summary);
+  } catch (error: any) {
+    console.error('Failed to import local photos:', error);
+    res.status(500).json({
+      message: '导入本地照片失败',
+      detail: error?.message ?? String(error),
+    });
+  }
 });

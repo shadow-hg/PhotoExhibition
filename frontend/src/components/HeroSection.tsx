@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { StatsResponse } from '../types/api';
 import { Link } from 'react-router-dom';
+import { buildImageSrc } from '../utils/images';
 
 interface HeroSectionProps {
   data?: StatsResponse;
@@ -56,7 +57,7 @@ export default function HeroSection({ data }: HeroSectionProps) {
               className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/5"
             >
               <img
-                src={`${photo.imageUrl}&auto=format&fit=crop&w=800&q=80`}
+                src={buildImageSrc(photo.imageUrl, { width: 800, quality: 80, fit: 'crop' })}
                 alt={photo.title}
                 className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                 loading="lazy"

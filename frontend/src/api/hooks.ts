@@ -1,6 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { Collection, CollectionPayload, ContactMessage, Exhibition, Photo, PhotoPayload, ExhibitionPayload, StatsResponse } from '../types/api';
+import {
+  BulkImportResult,
+  Collection,
+  CollectionPayload,
+  ContactMessage,
+  Exhibition,
+  Photo,
+  PhotoPayload,
+  ExhibitionPayload,
+  StatsResponse,
+} from '../types/api';
 
 export function usePhotos(params?: Record<string, any>) {
   return useQuery<Photo[]>({
@@ -119,6 +129,20 @@ export function useAdminDeletePhoto() {
     mutationFn: async (id: number) => {
       await apiClient.delete(`/admin/photos/${id}`);
       return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['photos'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+    },
+  });
+}
+
+export function useAdminImportLocalPhotos() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post<BulkImportResult>('/admin/photos/import-local');
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['photos'] });
