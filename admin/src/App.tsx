@@ -3,6 +3,7 @@ import { ConfigProvider, theme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { useEffect } from 'react';
 import { DashboardLayout } from './components/DashboardLayout';
+import { DashboardOverview } from './pages/DashboardOverview';
 import { GalleryManager } from './pages/GalleryManager';
 import { UploadPage } from './pages/UploadPage';
 import { LogsPage } from './pages/LogsPage';
@@ -26,7 +27,8 @@ export const App = () => {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<DashboardLayout />}>
-            <Route index element={<Navigate to="gallery" replace />} />
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<DashboardOverview />} />
             <Route path="gallery" element={<GalleryManager />} />
             <Route path="upload" element={<UploadPage />} />
             <Route path="logs" element={<LogsPage />} />

@@ -4,16 +4,18 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   PictureOutlined,
   UploadOutlined,
-  BarChartOutlined
+  BarChartOutlined,
+  HistoryOutlined
 } from '@ant-design/icons';
 import { setAdminToken, loginAsAdmin } from '../services/api';
 
 const { Header, Sider, Content } = Layout;
 
 const items = [
-  { key: 'gallery', icon: <PictureOutlined />, label: '图库管理' },
+  { key: 'dashboard', icon: <BarChartOutlined />, label: '数据总览' },
+  { key: 'gallery', icon: <PictureOutlined />, label: '专题管理' },
   { key: 'upload', icon: <UploadOutlined />, label: '上传处理' },
-  { key: 'logs', icon: <BarChartOutlined />, label: '访问日志' }
+  { key: 'logs', icon: <HistoryOutlined />, label: '访问日志' }
 ];
 
 export const DashboardLayout = () => {
@@ -72,7 +74,7 @@ export const DashboardLayout = () => {
         <Header style={{ background: 'rgba(15,23,42,0.85)', color: 'white', padding: '0 24px' }}>
           <Space size="large" align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
             <Typography.Title level={3} style={{ color: 'white', margin: 0 }}>
-              Serverless Photo Gallery
+              Photo Exhibition Admin
             </Typography.Title>
             <Space>
               <Input.Password

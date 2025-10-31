@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { SiteConfig, PhotoMetadata, LogEntry } from '../types';
+import type { AdminDashboard, GalleryResponse, PhotoAsset, SiteManifest, LogEntry } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
 const ADMIN_API_BASE_URL = import.meta.env.VITE_ADMIN_API_BASE_URL ?? '/api/admin';
@@ -39,22 +39,27 @@ export const loginAsAdmin = async (password: string) => {
   return data;
 };
 
-export const fetchConfig = async () => {
-  const { data } = await client.get<SiteConfig>('/getConfig');
-  return data;
+export const fetchManifest = async () => {
+  const { data } = await client.get<GalleryResponse>('/gallery/manifest');
+  return data.manifest;
 };
 
-export const updateConfig = async (config: SiteConfig) => {
-  const { data } = await adminClient.post<SiteConfig>('/updateConfig', config);
+export const updateManifest = async (manifest: SiteManifest) => {
+  const { data } = await adminClient.post<SiteManifest>('/manifest', manifest);
   return data;
 };
 
 export const triggerUploadProcessing = async (objectKey: string) => {
-  const { data } = await adminClient.post<PhotoMetadata>('/upload', { objectKey });
+  const { data } = await adminClient.post<PhotoAsset>('/upload', { objectKey });
+  return data;
+};
+
+export const fetchDashboard = async () => {
+  const { data } = await adminClient.get<AdminDashboard>('/dashboard');
   return data;
 };
 
 export const fetchLogs = async () => {
-  const { data } = await adminClient.get<{ logs: LogEntry[] }>('/listLogs');
+  const { data } = await adminClient.get<{ logs: LogEntry[] }>('/logs');
   return data.logs;
 };

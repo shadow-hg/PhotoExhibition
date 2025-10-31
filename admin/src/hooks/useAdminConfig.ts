@@ -1,24 +1,24 @@
 import { useEffect, useState } from 'react';
-import { fetchConfig, updateConfig } from '../services/api';
-import type { SiteConfig } from '../types';
+import { fetchManifest, updateManifest } from '../services/api';
+import type { SiteManifest } from '../types';
 
 export const useAdminConfig = () => {
-  const [config, setConfig] = useState<SiteConfig | null>(null);
+  const [manifest, setManifest] = useState<SiteManifest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchConfig()
-      .then(setConfig)
+    fetchManifest()
+      .then(setManifest)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
-  const save = async (next: SiteConfig) => {
-    const saved = await updateConfig(next);
-    setConfig(saved);
+  const save = async (next: SiteManifest) => {
+    const saved = await updateManifest(next);
+    setManifest(saved);
     return saved;
   };
 
-  return { config, loading, error, save, setConfig } as const;
+  return { manifest, loading, error, save, setManifest } as const;
 };

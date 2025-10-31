@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import type OSS from 'ali-oss';
-import type { SiteConfig } from '../types';
+import type { SiteManifest } from '../types';
 import { createOSSClient, readJSON, writeJSON } from '../utils/oss';
 import { isLocalMode } from './runtime';
 
@@ -13,77 +13,77 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const LOCAL_CONFIG_PATH = path.resolve(__dirname, '../../..', CONFIG_PATH);
 
-let cachedConfig: SiteConfig | null = null;
+let cachedManifest: SiteManifest | null = null;
 let lastEtag: string | null = null;
 
-const computeHash = (config: SiteConfig) =>
-  createHash('sha1').update(JSON.stringify(config)).digest('hex');
+const computeHash = (manifest: SiteManifest) =>
+  createHash('sha1').update(JSON.stringify(manifest)).digest('hex');
 
 const shouldFallbackToLocalFile = (error: unknown) =>
   error instanceof Error && error.message.includes('Missing OSS configuration environment variables');
 
-const readLocalConfig = async () => {
+const readLocalManifest = async () => {
   const file = await readFile(LOCAL_CONFIG_PATH, 'utf-8');
-  return JSON.parse(file) as SiteConfig;
+  return JSON.parse(file) as SiteManifest;
 };
 
-const writeLocalConfig = async (config: SiteConfig) => {
+const writeLocalManifest = async (manifest: SiteManifest) => {
   await mkdir(path.dirname(LOCAL_CONFIG_PATH), { recursive: true });
-  await writeFile(LOCAL_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
+  await writeFile(LOCAL_CONFIG_PATH, JSON.stringify(manifest, null, 2), 'utf-8');
 };
 
-export const getConfig = async (client?: OSS): Promise<SiteConfig> => {
+export const getManifest = async (client?: OSS): Promise<SiteManifest> => {
   if (isLocalMode()) {
-    const config = await readLocalConfig();
-    cachedConfig = config;
-    lastEtag = computeHash(config);
-    return config;
+    const manifest = await readLocalManifest();
+    cachedManifest = manifest;
+    lastEtag = computeHash(manifest);
+    return manifest;
   }
 
   try {
     const oss = client ?? createOSSClient();
-    const config = await readJSON<SiteConfig>(oss, CONFIG_PATH);
-    const etag = computeHash(config);
+    const manifest = await readJSON<SiteManifest>(oss, CONFIG_PATH);
+    const etag = computeHash(manifest);
     if (!lastEtag || lastEtag !== etag) {
-      cachedConfig = config;
+      cachedManifest = manifest;
       lastEtag = etag;
     }
-    return config;
+    return manifest;
   } catch (error) {
     if (!shouldFallbackToLocalFile(error)) {
       throw error;
     }
 
-    const config = await readLocalConfig();
-    cachedConfig = config;
-    lastEtag = computeHash(config);
-    return config;
+    const manifest = await readLocalManifest();
+    cachedManifest = manifest;
+    lastEtag = computeHash(manifest);
+    return manifest;
   }
 };
 
-export const getCachedConfig = async () => {
-  if (cachedConfig) return cachedConfig;
-  return getConfig();
+export const getCachedManifest = async () => {
+  if (cachedManifest) return cachedManifest;
+  return getManifest();
 };
 
-export const updateConfig = async (config: SiteConfig) => {
+export const updateManifest = async (manifest: SiteManifest) => {
   if (isLocalMode()) {
-    await writeLocalConfig(config);
-    cachedConfig = config;
-    lastEtag = computeHash(config);
-    return config;
+    await writeLocalManifest(manifest);
+    cachedManifest = manifest;
+    lastEtag = computeHash(manifest);
+    return manifest;
   }
 
   try {
     const oss = createOSSClient();
-    await writeJSON(oss, CONFIG_PATH, config);
+    await writeJSON(oss, CONFIG_PATH, manifest);
   } catch (error) {
     if (!shouldFallbackToLocalFile(error)) {
       throw error;
     }
-    await writeLocalConfig(config);
+    await writeLocalManifest(manifest);
   }
-  cachedConfig = config;
-  lastEtag = computeHash(config);
-  return config;
+  cachedManifest = manifest;
+  lastEtag = computeHash(manifest);
+  return manifest;
 };
