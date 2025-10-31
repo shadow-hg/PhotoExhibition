@@ -2,8 +2,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import SiteLayout from './layouts/SiteLayout';
 import HomePage from './pages/HomePage';
 import GalleryPage from './pages/GalleryPage';
-import ExhibitionsPage from './pages/ExhibitionsPage';
-import AboutPage from './pages/AboutPage';
 import AdminLogin from './pages/AdminLogin';
 import AdminLayout from './layouts/AdminLayout';
 import AdminDashboard from './pages/AdminDashboard';
@@ -19,8 +17,6 @@ export default function App() {
         <Route path="/" element={<SiteLayout />}>
           <Route index element={<HomePage />} />
           <Route path="gallery" element={<GalleryPage />} />
-          <Route path="exhibitions" element={<ExhibitionsPage />} />
-          <Route path="about" element={<AboutPage />} />
         </Route>
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminLayout />}>
