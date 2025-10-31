@@ -44,6 +44,14 @@ npm run dev
 
 前端已配置 `/api` 代理指向本地 4000 端口。访问 `http://localhost:5173` 即可体验网站。
 
+### Windows 一键启动脚本
+
+若使用 Windows，可在项目根目录的 PowerShell 中运行 `./Start-PhotoExhibition.ps1`，脚本会自动检测端口占用并分别在 `9000`（后端）与 `6666`（前端）端口上启动开发服务器。如需调整端口，可通过参数传入，例如：
+
+```powershell
+./Start-PhotoExhibition.ps1 -BackendPort 9100 -FrontendPort 6700
+```
+
 ## 功能亮点
 - **多维作品筛选**：支持主题系列、标签、关键词组合检索。
 - **沉浸式视觉设计**：Aurora 渐变背景、动效、响应式瀑布流画廊与全屏 Lightbox。
