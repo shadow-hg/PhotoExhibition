@@ -2,6 +2,33 @@ $ErrorActionPreference = 'Stop'
 
 $rootDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
+function Resolve-NpmExecutable {
+    $candidateCommands = @()
+
+    if ($IsWindows) {
+        $candidateCommands += 'npm.cmd'
+        $candidateCommands += 'npm.exe'
+    }
+
+    $candidateCommands += 'npm'
+
+    foreach ($command in $candidateCommands) {
+        try {
+            $resolved = (Get-Command $command -ErrorAction Stop).Source
+            if ($resolved) {
+                return $resolved
+            }
+        }
+        catch {
+            continue
+        }
+    }
+
+    throw 'Unable to locate the npm executable. Please ensure Node.js is installed and available in PATH.'
+}
+
+$script:npmExecutable = Resolve-NpmExecutable
+
 function Get-AvailablePort {
     param (
         [Parameter(Mandatory = $true)]
@@ -38,8 +65,15 @@ function Invoke-NpmBuild {
 
     Push-Location $targetPath
     try {
-        npm install
-        npm run build
+        & $script:npmExecutable 'install'
+        if ($LASTEXITCODE -ne 0) {
+            throw 'npm install failed.'
+        }
+
+        & $script:npmExecutable 'run' 'build'
+        if ($LASTEXITCODE -ne 0) {
+            throw 'npm run build failed.'
+        }
     }
     finally {
         Pop-Location
@@ -63,7 +97,7 @@ function Start-ViteDev {
 
     $arguments = @('run', 'dev', '--', '--port', $port)
 
-    $process = Start-Process -FilePath 'npm' `
+    $process = Start-Process -FilePath $script:npmExecutable `
         -ArgumentList $arguments `
         -WorkingDirectory $targetPath `
         -NoNewWindow `
@@ -94,7 +128,8 @@ function Start-BackendDev {
         Write-Host "Requested port $PreferredPort is busy for $SubDirectory. Using $port instead."
     }
 
-    $command = '$env:RUNTIME_MODE="local"; $env:PORT={0}; npm run dev' -f $port
+    $escapedNpm = $script:npmExecutable.Replace([char]34, '""')
+    $command = '$env:RUNTIME_MODE="local"; $env:PORT={0}; & "{1}" run dev' -f $port, $escapedNpm
 
     $process = Start-Process -FilePath 'powershell.exe' `
         -ArgumentList '-NoLogo', '-NoProfile', '-Command', $command `
