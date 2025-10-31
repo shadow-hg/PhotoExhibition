@@ -27,7 +27,7 @@ function Resolve-NpmExecutable {
     throw 'Unable to locate the npm executable. Please ensure Node.js is installed and available in PATH.'
 }
 
-$npmExecutable = Resolve-NpmExecutable
+$script:npmExecutable = Resolve-NpmExecutable
 
 function Get-AvailablePort {
     param (
@@ -54,12 +54,36 @@ function Get-AvailablePort {
     throw "Unable to find an available port starting from $StartingPort after $MaxAttempts attempts."
 }
 
+function Invoke-NpmCommand {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string] $WorkingDirectory,
+        [Parameter(Mandatory = $true)]
+        [string[]] $Arguments,
+        [string] $ErrorMessage
+    )
+
+    $process = Start-Process -FilePath $script:npmExecutable `
+        -ArgumentList $Arguments `
+        -WorkingDirectory $WorkingDirectory `
+        -NoNewWindow `
+        -Wait `
+        -PassThru
+
+    if ($process.ExitCode -ne 0) {
+        if ($ErrorMessage) {
+            throw $ErrorMessage
+        }
+
+        $joinedArgs = $Arguments -join ' '
+        throw "npm command '$joinedArgs' failed with exit code $($process.ExitCode)."
+    }
+}
+
 function Invoke-NpmBuild {
     param (
         [Parameter(Mandatory = $true)]
-        [string] $SubDirectory,
-        [Parameter(Mandatory = $true)]
-        [string] $NpmExecutable
+        [string] $SubDirectory
     )
 
     $targetPath = Join-Path $rootDir $SubDirectory
@@ -67,15 +91,8 @@ function Invoke-NpmBuild {
 
     Push-Location $targetPath
     try {
-        & $NpmExecutable install
-        if ($LASTEXITCODE -ne 0) {
-            throw 'npm install failed.'
-        }
-
-        & $NpmExecutable run build
-        if ($LASTEXITCODE -ne 0) {
-            throw 'npm run build failed.'
-        }
+        Invoke-NpmCommand -WorkingDirectory $targetPath -Arguments @('install') -ErrorMessage 'npm install failed.'
+        Invoke-NpmCommand -WorkingDirectory $targetPath -Arguments @('run', 'build') -ErrorMessage 'npm run build failed.'
     }
     finally {
         Pop-Location
@@ -87,9 +104,7 @@ function Start-ViteDev {
         [Parameter(Mandatory = $true)]
         [string] $SubDirectory,
         [Parameter(Mandatory = $true)]
-        [int] $PreferredPort,
-        [Parameter(Mandatory = $true)]
-        [string] $NpmExecutable
+        [int] $PreferredPort
     )
 
     $targetPath = Join-Path $rootDir $SubDirectory
@@ -101,7 +116,7 @@ function Start-ViteDev {
 
     $arguments = @('run', 'dev', '--', '--port', $port)
 
-    $process = Start-Process -FilePath $NpmExecutable `
+    $process = Start-Process -FilePath $script:npmExecutable `
         -ArgumentList $arguments `
         -WorkingDirectory $targetPath `
         -NoNewWindow `
@@ -122,9 +137,7 @@ function Start-BackendDev {
         [Parameter(Mandatory = $true)]
         [string] $SubDirectory,
         [Parameter(Mandatory = $true)]
-        [int] $PreferredPort,
-        [Parameter(Mandatory = $true)]
-        [string] $NpmExecutable
+        [int] $PreferredPort
     )
 
     $targetPath = Join-Path $rootDir $SubDirectory
@@ -134,7 +147,7 @@ function Start-BackendDev {
         Write-Host "Requested port $PreferredPort is busy for $SubDirectory. Using $port instead."
     }
 
-    $escapedNpm = $NpmExecutable.Replace([char]34, '""')
+    $escapedNpm = $script:npmExecutable.Replace([char]34, '""')
     $command = '$env:RUNTIME_MODE="local"; $env:PORT={0}; & "{1}" run dev' -f $port, $escapedNpm
 
     $process = Start-Process -FilePath 'powershell.exe' `
@@ -153,14 +166,14 @@ function Start-BackendDev {
     }
 }
 
-Invoke-NpmBuild -SubDirectory 'frontend' -NpmExecutable $npmExecutable
-Invoke-NpmBuild -SubDirectory 'admin' -NpmExecutable $npmExecutable
-Invoke-NpmBuild -SubDirectory 'backend' -NpmExecutable $npmExecutable
+Invoke-NpmBuild -SubDirectory 'frontend'
+Invoke-NpmBuild -SubDirectory 'admin'
+Invoke-NpmBuild -SubDirectory 'backend'
 
 $startedServices = @()
-$startedServices += Start-ViteDev -SubDirectory 'frontend' -PreferredPort 5173 -NpmExecutable $npmExecutable
-$startedServices += Start-ViteDev -SubDirectory 'admin' -PreferredPort 5174 -NpmExecutable $npmExecutable
-$startedServices += Start-BackendDev -SubDirectory 'backend' -PreferredPort 9000 -NpmExecutable $npmExecutable
+$startedServices += Start-ViteDev -SubDirectory 'frontend' -PreferredPort 5173
+$startedServices += Start-ViteDev -SubDirectory 'admin' -PreferredPort 5174
+$startedServices += Start-BackendDev -SubDirectory 'backend' -PreferredPort 9000
 
 Write-Host ''
 Write-Host 'Development servers started:'
