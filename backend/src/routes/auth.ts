@@ -16,7 +16,16 @@ router.post('/login', (req, res) => {
     return res.status(400).json({ message: '参数校验失败', errors: parsed.error.flatten() });
   }
 
-  const admin = db.prepare('SELECT * FROM admins WHERE username = ?').get(parsed.data.username);
+  type AdminRow = {
+    id: number;
+    username: string;
+    password_hash: string;
+  };
+
+  const admin = db
+    .prepare('SELECT * FROM admins WHERE username = ?')
+    .get(parsed.data.username) as AdminRow | undefined;
+
   if (!admin || !verifyPassword(parsed.data.password, admin.password_hash)) {
     return res.status(401).json({ message: '账号或密码错误' });
   }

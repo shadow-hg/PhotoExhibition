@@ -274,15 +274,34 @@ export function getMessageById(id: number): ContactMessage | null {
   return row ? mapMessage(row) : null;
 }
 
+type GalleryTotalsRow = {
+  total_photos: number | null;
+  featured_photos: number | null;
+  total_collections: number | null;
+  total_exhibitions: number | null;
+  total_views: number | null;
+};
+
+type GalleryTagRow = {
+  tag: string | null;
+  count: number | null;
+};
+
 export function getGalleryStats(): GalleryStats {
-  const totals = db.prepare(
+  const totals = (db.prepare(
     `SELECT
         (SELECT COUNT(*) FROM photos) AS total_photos,
         (SELECT COUNT(*) FROM photos WHERE is_featured = 1) AS featured_photos,
         (SELECT COUNT(*) FROM collections) AS total_collections,
         (SELECT COUNT(*) FROM exhibitions) AS total_exhibitions,
         (SELECT IFNULL(SUM(views), 0) FROM photos) AS total_views`
-  ).get();
+  ).get() as GalleryTotalsRow | undefined) ?? {
+    total_photos: 0,
+    featured_photos: 0,
+    total_collections: 0,
+    total_exhibitions: 0,
+    total_views: 0,
+  };
 
   const tagRows = db.prepare(
     `SELECT lower(trim(json_each.value)) AS tag, COUNT(*) AS count
@@ -290,7 +309,7 @@ export function getGalleryStats(): GalleryStats {
      GROUP BY tag
      ORDER BY count DESC
      LIMIT 10`
-  ).all();
+  ).all() as GalleryTagRow[];
 
   return {
     totalPhotos: totals.total_photos ?? 0,
@@ -299,7 +318,7 @@ export function getGalleryStats(): GalleryStats {
     totalExhibitions: totals.total_exhibitions ?? 0,
     totalViews: totals.total_views ?? 0,
     topTags: tagRows
-      .filter((row) => row.tag)
-      .map((row) => ({ tag: row.tag as string, count: row.count as number })),
+      .filter((row): row is GalleryTagRow & { tag: string } => typeof row.tag === 'string')
+      .map((row) => ({ tag: row.tag, count: Number(row.count ?? 0) })),
   };
 }
