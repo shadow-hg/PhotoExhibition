@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import sharp from 'sharp';
 import exifr from 'exifr';
 import type OSS from 'ali-oss';
-import type { PhotoMetadata } from '../types';
+import type { PhotoAsset } from '../types';
 import { createOSSClient, readJSON, writeJSON } from '../utils/oss';
 import { isLocalMode } from './runtime';
 import { readLocalBuffer, readLocalJSON, writeLocalBuffer, writeLocalJSON, listLocalFiles, toLocalStaticUrl } from './localFs';
@@ -18,19 +18,25 @@ interface StoredMetadata {
   thumbnailKey: string;
   sourceEtag?: string;
   updatedAt: string;
-  data: Omit<PhotoMetadata, 'src' | 'thumbnail'>;
+  data: Omit<PhotoAsset, 'src' | 'thumbnail'>;
 }
+
+const getOrientation = (width: number, height: number): PhotoAsset['orientation'] => {
+  if (!width || !height) return undefined;
+  if (width === height) return 'square';
+  return width >= height ? 'landscape' : 'portrait';
+};
 
 const getStatusCode = (error: unknown) =>
   typeof error === 'object' && error && 'status' in error ? Number((error as { status?: number }).status) : 0;
 
-const signPhoto = (client: OSS, stored: StoredMetadata): PhotoMetadata => ({
+const signPhoto = (client: OSS, stored: StoredMetadata): PhotoAsset => ({
   ...stored.data,
   src: client.signatureUrl(stored.objectKey, { expires: SIGNED_URL_TTL_SECONDS }),
   thumbnail: client.signatureUrl(stored.thumbnailKey, { expires: SIGNED_URL_TTL_SECONDS })
 });
 
-const buildLocalPhoto = (stored: StoredMetadata): PhotoMetadata => ({
+const buildLocalPhoto = (stored: StoredMetadata): PhotoAsset => ({
   ...stored.data,
   src: toLocalStaticUrl(stored.objectKey),
   thumbnail: toLocalStaticUrl(stored.thumbnailKey)
@@ -38,14 +44,14 @@ const buildLocalPhoto = (stored: StoredMetadata): PhotoMetadata => ({
 
 const parseExifValue = (value: unknown) => (value == null ? undefined : String(value));
 
-const normalizeExif = (exif: Record<string, unknown>): Partial<PhotoMetadata> => {
+const normalizeExif = (exif: Record<string, unknown>): Partial<PhotoAsset> => {
   const shutterSpeed = exif.ExposureTime
     ? `${exif.ExposureTime}s`
     : exif.ShutterSpeedValue
     ? `${exif.ShutterSpeedValue}`
     : undefined;
   return {
-    captureTime: parseExifValue(exif.DateTimeOriginal || exif.CreateDate),
+    capturedAt: parseExifValue(exif.DateTimeOriginal || exif.CreateDate),
     camera: parseExifValue(exif.Model),
     lens: parseExifValue(exif.LensModel),
     iso: exif.ISO ? Number(exif.ISO) : undefined,
@@ -58,12 +64,12 @@ const normalizeExif = (exif: Record<string, unknown>): Partial<PhotoMetadata> =>
 export const generateThumbnail = async (buffer: Buffer) => {
   const transformer = sharp(buffer)
     .rotate()
-    .resize(800, 800, {
+    .resize(1280, 1280, {
       fit: 'inside',
       withoutEnlargement: true
     });
   const { width, height } = await transformer.metadata();
-  const thumbnail = await transformer.jpeg({ quality: 80 }).toBuffer();
+  const thumbnail = await transformer.jpeg({ quality: 82 }).toBuffer();
   return { thumbnail, width: width ?? 0, height: height ?? 0 };
 };
 
@@ -85,7 +91,7 @@ const ensureMetadataKey = (relativePath: string) =>
 
 const computeBufferHash = (buffer: Buffer) => createHash('sha1').update(buffer).digest('hex');
 
-const processUploadLocal = async (objectKey: string): Promise<PhotoMetadata> => {
+const processUploadLocal = async (objectKey: string): Promise<PhotoAsset> => {
   const relativePath = getRelativePath(objectKey);
   const normalizedRelative = relativePath.replace(/^\/+/, '');
   const objectKeyWithPrefix = path.posix.join(ORIGINAL_PREFIX, normalizedRelative);
@@ -130,7 +136,7 @@ const processUploadLocal = async (objectKey: string): Promise<PhotoMetadata> => 
     title: cached?.data?.title ?? path.parse(normalizedRelative).name,
     width: thumb.width,
     height: thumb.height,
-    ratio: thumb.height ? thumb.width / thumb.height : undefined
+    orientation: getOrientation(thumb.width ?? 0, thumb.height ?? 0)
   };
 
   for (const [key, value] of Object.entries(normalized)) {
@@ -209,7 +215,7 @@ export const processUpload = async (objectKey: string, client?: OSS) => {
     title: cached?.data?.title ?? path.parse(relativePath).name,
     width: thumb.width,
     height: thumb.height,
-    ratio: thumb.height ? thumb.width / thumb.height : undefined
+    orientation: getOrientation(thumb.width ?? 0, thumb.height ?? 0)
   };
 
   for (const [key, value] of Object.entries(normalized)) {
@@ -236,7 +242,7 @@ export const getPhotosByGroup = async (slug: string) => {
     const normalizedSlug = slug.replace(/\\/g, '/').replace(/^\/+/, '');
     const metadataPrefix = path.posix.join(METADATA_PREFIX, normalizedSlug);
     const files = await listLocalFiles(metadataPrefix);
-    const result: PhotoMetadata[] = [];
+    const result: PhotoAsset[] = [];
 
     for (const file of files.filter((key) => key.endsWith('.json'))) {
       try {
@@ -253,7 +259,7 @@ export const getPhotosByGroup = async (slug: string) => {
   }
 
   const client = createOSSClient();
-  const result: PhotoMetadata[] = [];
+  const result: PhotoAsset[] = [];
   let isTruncated = true;
   let marker: string | undefined;
 

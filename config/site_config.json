@@ -1,36 +1,339 @@
 {
-  "title": "Serverless Photo Gallery",
-  "subtitle": "无服务器摄影作品展示",
-  "actions": {
-    "download": "oss://photos/archive/latest.zip"
+  "site": {
+    "title": "光影纪实馆",
+    "subtitle": "Photographs & Stories by Aurora Studio",
+    "description": "一座不断成长的线上影像展馆，以专题叙事的方式讲述城市、人文与自然之间的微妙连结。",
+    "hero": {
+      "title": "穿梭光影之间",
+      "tagline": "From fleeting moments to timeless narratives",
+      "description": "精选 3 个主题项目与 40 余幅作品，涵盖街头纪实、自然风光与人物肖像，并配备 EXIF 细节、故事文本与可下载合集。",
+      "backgroundImage": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80",
+      "highlight": "2024 新系列《Nomad Horizon》首发上线"
+    },
+    "socials": [
+      { "label": "Instagram", "href": "https://instagram.com", "icon": "instagram" },
+      { "label": "Behance", "href": "https://behance.net", "icon": "behance" },
+      { "label": "Email", "href": "mailto:hello@example.com", "icon": "mail" }
+    ]
   },
-  "gallery": [
+  "actions": {
+    "primary": {
+      "label": "预约线下观展",
+      "href": "https://cal.com",
+      "type": "primary",
+      "description": "与作者面对面交流作品背后的故事"
+    },
+    "secondary": {
+      "label": "订阅创作简报",
+      "href": "https://example.com/newsletter",
+      "type": "secondary"
+    },
+    "download": {
+      "label": "下载高清作品集",
+      "href": "oss://photos/archive/2024-master.zip",
+      "type": "ghost",
+      "requirePassword": true,
+      "description": "提供 4K 尺寸 JPEG 与 EXIF 信息"
+    }
+  },
+  "spotlight": ["urban-poetry", "nomad-horizon"],
+  "featured": ["urban-dawn-001", "serene-forest-003", "nomad-horizon-002", "portraits-atelier-004"],
+  "albums": [
     {
-      "name": "旅行随拍",
-      "slug": "travel",
-      "description": "旅途中的美好瞬间",
-      "cover": "https://example.com/covers/travel.jpg",
+      "slug": "urban-poetry",
+      "name": "Urban Poetry",
+      "subtitle": "夜色里的城市与人",
+      "description": "记录夜幕下的大都会，追寻人类与霓虹交织的诗意时刻。",
+      "cover": {
+        "image": "https://images.unsplash.com/photo-1494548162494-384bba4ab999?auto=format&fit=crop&w=1400&q=80",
+        "color": "#0f172a"
+      },
+      "theme": "dark",
+      "location": "Tokyo · Hong Kong · Shanghai",
+      "dateRange": { "start": "2023-10-01", "end": "2024-02-28" },
+      "tags": ["city", "night", "street", "portrait"],
+      "cameras": ["Leica Q3", "Fujifilm X100V"],
+      "lenses": ["28mm f/1.7", "23mm f/2"],
+      "mood": ["neon", "noir"],
+      "spotlight": ["urban-dawn-001", "urban-dawn-002"],
       "photos": [
         {
-          "id": "demo-001",
-          "title": "蓝色海岸线",
-          "description": "巴塞罗那的日出",
-          "location": "西班牙",
-          "captureTime": "2023-09-10T05:32:00.000Z",
+          "id": "urban-dawn-001",
+          "title": "Neon Reverie",
+          "description": "凌晨两点的涩谷十字路口，霓虹雨水映出碎片般的色彩。",
+          "location": "Tokyo",
+          "capturedAt": "2023-11-12T02:14:00.000Z",
+          "camera": "Leica Q3",
+          "lens": "28mm f/1.7",
+          "iso": 3200,
+          "aperture": "1.7",
+          "shutter": "1/60s",
+          "focalLength": "28mm",
+          "rating": 5,
+          "palette": ["#0f172a", "#1d4ed8", "#f97316"],
+          "tags": ["street", "rain", "night"],
+          "width": 4096,
+          "height": 2731,
+          "orientation": "landscape",
+          "dominantColor": "#0f172a",
+          "src": "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1800&q=80",
+          "thumbnail": "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=600&q=60",
+          "hero": true
+        },
+        {
+          "id": "urban-dawn-002",
+          "title": "Solitude in Transit",
+          "description": "末班地铁里低头沉思的旅人，和窗外飞逝的灯带。",
+          "location": "Hong Kong",
+          "capturedAt": "2024-01-05T22:45:00.000Z",
+          "camera": "Fujifilm X100V",
+          "lens": "23mm f/2",
+          "iso": 1600,
+          "aperture": "2.0",
+          "shutter": "1/80s",
+          "focalLength": "23mm",
+          "rating": 4,
+          "tags": ["transit", "portrait"],
+          "width": 4000,
+          "height": 2667,
+          "orientation": "landscape",
+          "src": "https://images.unsplash.com/photo-1522770179533-24471fcdba45?auto=format&fit=crop&w=1800&q=80",
+          "thumbnail": "https://images.unsplash.com/photo-1522770179533-24471fcdba45?auto=format&fit=crop&w=600&q=60"
+        },
+        {
+          "id": "urban-dawn-003",
+          "title": "Midnight Reflections",
+          "description": "玻璃幕墙上的倒影将城市切割成虚实并置的图景。",
+          "location": "Shanghai",
+          "capturedAt": "2024-02-14T19:20:00.000Z",
+          "camera": "Leica Q3",
+          "lens": "28mm f/1.7",
+          "iso": 800,
+          "aperture": "2.8",
+          "shutter": "1/40s",
+          "focalLength": "28mm",
+          "tags": ["reflection", "architecture"],
+          "width": 3890,
+          "height": 2593,
+          "orientation": "landscape",
+          "src": "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1600&q=80",
+          "thumbnail": "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=500&q=60"
+        }
+      ],
+      "stories": [
+        {
+          "title": "寻找夜色中的诗",
+          "summary": "通过长时间在街头游走，捕捉到人与城市之间短暂的情感连线。",
+          "highlighted": true
+        },
+        {
+          "title": "霓虹的温度",
+          "summary": "使用慢速快门让雨滴与灯光交织，呈现出梦境般的色彩层次。"
+        }
+      ]
+    },
+    {
+      "slug": "nomad-horizon",
+      "name": "Nomad Horizon",
+      "subtitle": "旷野里的流浪者",
+      "description": "远离城市喧嚣，追随游牧者的步伐穿越草原与峡谷。",
+      "cover": {
+        "image": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1400&q=80",
+        "color": "#1e3a8a"
+      },
+      "theme": "light",
+      "location": "Mongolia · Kazakhstan · Iceland",
+      "dateRange": { "start": "2022-07-01", "end": "2023-06-30" },
+      "tags": ["travel", "landscape", "nomad"],
+      "cameras": ["Sony A7R IV", "DJI Mavic 3"],
+      "lenses": ["24-70mm f/2.8", "70-200mm f/2.8"],
+      "mood": ["serene", "vast"],
+      "spotlight": ["nomad-horizon-001", "nomad-horizon-002"],
+      "photos": [
+        {
+          "id": "nomad-horizon-001",
+          "title": "Golden Steppe",
+          "description": "日落将草原染成金色，游牧民的帐篷与牲畜点缀其中。",
+          "location": "Mongolia",
+          "capturedAt": "2022-09-08T17:20:00.000Z",
           "camera": "Sony A7R IV",
-          "lens": "FE 24-70mm F2.8 GM",
+          "lens": "24-70mm f/2.8",
           "iso": 100,
-          "aperture": "8",
-          "shutter": "1/125s",
-          "focalLength": "35mm",
-          "ratio": 1.5,
-          "src": "https://example.com/photos/travel/blue-coast.jpg",
-          "thumbnail": "https://example.com/photos/travel/blue-coast-thumb.jpg",
-          "width": 3840,
-          "height": 2560
+          "aperture": "4",
+          "shutter": "1/200s",
+          "focalLength": "50mm",
+          "tags": ["sunset", "grassland"],
+          "width": 6000,
+          "height": 4000,
+          "orientation": "landscape",
+          "dominantColor": "#fbbf24",
+          "src": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1800&q=80",
+          "thumbnail": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=600&q=60"
+        },
+        {
+          "id": "nomad-horizon-002",
+          "title": "Glacial Passage",
+          "description": "冰川之间的峡谷，被清晨的薄雾轻柔包裹。",
+          "location": "Iceland",
+          "capturedAt": "2023-04-14T06:10:00.000Z",
+          "camera": "Sony A7R IV",
+          "lens": "70-200mm f/2.8",
+          "iso": 200,
+          "aperture": "5.6",
+          "shutter": "1/320s",
+          "focalLength": "120mm",
+          "tags": ["glacier", "mist"],
+          "width": 5472,
+          "height": 3648,
+          "orientation": "landscape",
+          "src": "https://images.unsplash.com/photo-1433477155337-9aea4e790195?auto=format&fit=crop&w=1800&q=80",
+          "thumbnail": "https://images.unsplash.com/photo-1433477155337-9aea4e790195?auto=format&fit=crop&w=600&q=60"
+        },
+        {
+          "id": "serene-forest-003",
+          "title": "Silent Forest",
+          "description": "黎明时分的冷杉树林，轻雾升起像极了童话书里的场景。",
+          "location": "Kazakhstan",
+          "capturedAt": "2022-11-21T05:45:00.000Z",
+          "camera": "DJI Mavic 3",
+          "lens": "24mm f/2.8",
+          "iso": 200,
+          "aperture": "2.8",
+          "shutter": "1/50s",
+          "focalLength": "24mm",
+          "tags": ["forest", "drone"],
+          "width": 5280,
+          "height": 3520,
+          "orientation": "landscape",
+          "src": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80",
+          "thumbnail": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=500&q=60"
+        }
+      ],
+      "stories": [
+        {
+          "title": "追随游牧者的脚步",
+          "summary": "在移动的帐篷之间生活，用相机记录草原日常。",
+          "highlighted": true
+        },
+        {
+          "title": "与自然对话的清晨",
+          "summary": "在冰岛的黎明寒风中等待光线，捕捉宁静的蓝色调。"
+        }
+      ]
+    },
+    {
+      "slug": "portraits-atelier",
+      "name": "Portraits Atelier",
+      "subtitle": "光影工坊的创作实验",
+      "description": "以影棚和自然光混合的方式打造人物肖像，探索光影与情绪的边界。",
+      "cover": {
+        "image": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=1400&q=80",
+        "color": "#4c1d95"
+      },
+      "theme": "dark",
+      "location": "Beijing Studio",
+      "dateRange": { "start": "2021-01-01", "end": "2024-03-10" },
+      "tags": ["portrait", "studio", "monochrome"],
+      "cameras": ["Canon R5", "Phase One XF"],
+      "lenses": ["85mm f/1.2", "150mm f/2.8"],
+      "mood": ["intimate", "dramatic"],
+      "spotlight": ["portraits-atelier-001", "portraits-atelier-004"],
+      "photos": [
+        {
+          "id": "portraits-atelier-001",
+          "title": "Silver Echo",
+          "description": "柔光布下的银色妆容与模特眼神形成静默对峙。",
+          "location": "Beijing",
+          "capturedAt": "2023-02-18T13:30:00.000Z",
+          "camera": "Canon R5",
+          "lens": "85mm f/1.2",
+          "iso": 200,
+          "aperture": "2.0",
+          "shutter": "1/160s",
+          "focalLength": "85mm",
+          "rating": 5,
+          "tags": ["portrait", "studio"],
+          "width": 4480,
+          "height": 6720,
+          "orientation": "portrait",
+          "src": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=1600&q=80",
+          "thumbnail": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=500&q=60",
+          "hero": true
+        },
+        {
+          "id": "portraits-atelier-002",
+          "title": "Light Weaver",
+          "description": "动感丝带与高速闪光灯塑造出的光线雕塑。",
+          "location": "Beijing",
+          "capturedAt": "2022-10-02T10:12:00.000Z",
+          "camera": "Canon R5",
+          "lens": "150mm f/2.8",
+          "iso": 100,
+          "aperture": "4",
+          "shutter": "1/250s",
+          "focalLength": "150mm",
+          "tags": ["motion", "studio"],
+          "width": 6000,
+          "height": 4000,
+          "orientation": "landscape",
+          "src": "https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?auto=format&fit=crop&w=1600&q=80",
+          "thumbnail": "https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?auto=format&fit=crop&w=500&q=60"
+        },
+        {
+          "id": "portraits-atelier-004",
+          "title": "Chromatic Whisper",
+          "description": "色片透射出的多彩阴影，赋予肖像层叠质感。",
+          "location": "Beijing",
+          "capturedAt": "2024-03-10T09:18:00.000Z",
+          "camera": "Phase One XF",
+          "lens": "80mm f/2.8",
+          "tags": ["color", "studio"],
+          "width": 8280,
+          "height": 6200,
+          "orientation": "landscape",
+          "src": "https://images.unsplash.com/photo-1503341455253-b2e723bb3dbb?auto=format&fit=crop&w=1600&q=80",
+          "thumbnail": "https://images.unsplash.com/photo-1503341455253-b2e723bb3dbb?auto=format&fit=crop&w=500&q=60"
+        }
+      ],
+      "stories": [
+        {
+          "title": "光影工坊的诞生",
+          "summary": "通过跨学科合作打造一个以实验精神为核心的影棚。",
+          "highlighted": true
+        },
+        {
+          "title": "色彩的第二层皮肤",
+          "summary": "使用彩色玻璃与投影，将人物包裹在抽象的光线之中。"
         }
       ]
     }
   ],
-  "updatedAt": "2024-01-01T00:00:00.000Z"
+  "timeline": [
+    {
+      "id": "2021-launch",
+      "date": "2021-05-01",
+      "title": "影像工坊成立",
+      "description": "第一间位于北京的共享摄影工作室正式运营。",
+      "location": "Beijing"
+    },
+    {
+      "id": "2022-expedition",
+      "date": "2022-09-08",
+      "title": "Nomad Horizon 项目启动",
+      "description": "跟随游牧者跨越欧亚草原，历时 10 个月的影像田野调查。",
+      "album": "nomad-horizon",
+      "cover": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80",
+      "location": "Central Asia"
+    },
+    {
+      "id": "2024-exhibition",
+      "date": "2024-04-12",
+      "title": "《夜行诗》实体展",
+      "description": "在上海张园举办的沉浸式体验展，观众可透过装置探索城市夜色。",
+      "album": "urban-poetry",
+      "cover": "https://images.unsplash.com/photo-1494548162494-384bba4ab999?auto=format&fit=crop&w=1200&q=80",
+      "location": "Shanghai"
+    }
+  ],
+  "updatedAt": "2024-04-12T10:00:00.000Z"
 }

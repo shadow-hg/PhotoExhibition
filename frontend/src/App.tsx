@@ -1,98 +1,124 @@
-import { useState } from 'react';
-import clsx from 'clsx';
-import { PhotoGrid } from './components/PhotoGrid';
-import { PasswordDialog } from './components/PasswordDialog';
+import { useMemo, useState } from 'react';
+import { GalleryHero } from './components/GalleryHero';
+import { FeaturedPhotos } from './components/FeaturedPhotos';
+import { SpotlightAlbums } from './components/SpotlightAlbums';
+import { AlbumExplorer } from './components/AlbumExplorer';
+import { TimelineSection } from './components/TimelineSection';
+import { DownloadDialog } from './components/DownloadDialog';
+import { PhotoDetailDialog } from './components/PhotoDetailDialog';
+import { AlbumDetailDialog } from './components/AlbumDetailDialog';
 import { useSiteConfig } from './hooks/useSiteConfig';
 import { useTrackView } from './hooks/useTrackView';
-
-const downloadClass = clsx(
-  'rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-200',
-  'hover:border-blue-500 hover:text-blue-400'
-);
-
-const downloadLinkClass = clsx(
-  'block rounded-lg bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white',
-  'hover:bg-blue-500'
-);
+import type { Album, PhotoAsset } from './types/gallery';
 
 function App() {
-  const { config, loading, error } = useSiteConfig();
-  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const { manifest, stats, filters, featuredPhotos, spotlightAlbums, loading, error } = useSiteConfig();
+  const [selectedPhoto, setSelectedPhoto] = useState<PhotoAsset | null>(null);
+  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
+  const [downloadOpen, setDownloadOpen] = useState(false);
 
-  useTrackView('gallery');
+  useTrackView({
+    page: 'gallery',
+    metadata: manifest
+      ? {
+          albums: manifest.albums.length,
+          updatedAt: manifest.updatedAt
+        }
+      : undefined
+  });
+
+  const timeline = manifest?.timeline ?? [];
+
+  const spotlightBySlug = useMemo(() => {
+    if (!manifest) return new Map<string, Album>();
+    const map = new Map<string, Album>();
+    for (const album of manifest.albums) {
+      map.set(album.slug, album);
+    }
+    return map;
+  }, [manifest]);
+
+  const handleOpenAlbum = (album: Album | string) => {
+    if (!manifest) return;
+    if (typeof album === 'string') {
+      const found = spotlightBySlug.get(album);
+      if (found) {
+        setSelectedAlbum(found);
+      }
+      return;
+    }
+    setSelectedAlbum(album);
+  };
+
+  const resolvePhotoById = (id: string) => {
+    if (!manifest) return null;
+    for (const album of manifest.albums) {
+      const found = album.photos.find((photo) => photo.id === id);
+      if (found) return found;
+    }
+    return null;
+  };
+
+  const handleSelectPhoto = (photo: PhotoAsset) => {
+    setSelectedPhoto(photo);
+  };
+
+  const handleSelectPhotoFromAlbum = (photoId: string) => {
+    const found = resolvePhotoById(photoId);
+    if (found) {
+      setSelectedPhoto(found);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="sticky top-0 z-50 backdrop-blur bg-slate-950/70 border-b border-slate-800">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{config?.title ?? 'Serverless Photo Gallery'}</h1>
-            {config?.subtitle && (
-              <p className="mt-1 text-sm text-slate-400">{config.subtitle}</p>
-            )}
+    <div className="min-h-screen bg-slate-950 pb-20 text-slate-50">
+      <main className="mx-auto flex w-full max-w-6xl flex-col gap-16 px-4 pt-12">
+        {loading && (
+          <div className="space-y-6">
+            <div className="h-64 animate-pulse rounded-3xl bg-slate-900/60" />
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="h-40 animate-pulse rounded-3xl bg-slate-900/60" />
+              <div className="h-40 animate-pulse rounded-3xl bg-slate-900/60" />
+              <div className="h-40 animate-pulse rounded-3xl bg-slate-900/60" />
+            </div>
           </div>
-          {config?.actions?.download && (
-            <button
-              type="button"
-              className={downloadClass}
-              onClick={() => {
-                if (config.actions?.download.startsWith('http')) {
-                  setDownloadUrl(config.actions.download);
-                } else {
-                  setShowPasswordDialog(true);
-                }
-              }}
-            >
-              下载合集
-            </button>
-          )}
-        </div>
-      </header>
+        )}
 
-      <main className="mx-auto max-w-6xl px-4 pb-24 pt-10">
-        {loading && <p className="text-slate-400">正在加载配置...</p>}
-        {error && <p className="text-rose-400">配置加载失败：{error}</p>}
-        {config && <PhotoGrid gallery={config.gallery} />}
+        {error && (
+          <div className="rounded-3xl border border-rose-500/40 bg-rose-500/10 p-6 text-rose-200">
+            配置加载失败：{error}
+          </div>
+        )}
+
+        {manifest && (
+          <>
+            <GalleryHero
+              manifest={manifest}
+              stats={stats}
+              onDownloadClick={() => setDownloadOpen(true)}
+            />
+            <FeaturedPhotos photos={featuredPhotos} onSelect={handleSelectPhoto} />
+            <SpotlightAlbums albums={spotlightAlbums} onOpen={handleOpenAlbum} />
+            <AlbumExplorer
+              albums={manifest.albums}
+              filters={filters}
+              onOpenAlbum={handleOpenAlbum}
+              onSelectPhoto={handleSelectPhoto}
+            />
+            {timeline.length > 0 && <TimelineSection timeline={timeline} onOpenAlbum={handleOpenAlbum} />}
+          </>
+        )}
       </main>
 
-      {(showPasswordDialog || downloadUrl) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/90 p-6 shadow-xl">
-            <div className="flex items-start justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-100">下载作品</h2>
-                <p className="text-sm text-slate-400">输入密码以获取临时下载链接。</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPasswordDialog(false);
-                  setDownloadUrl(null);
-                }}
-                className="rounded-full border border-transparent p-1 text-slate-400 hover:border-slate-700 hover:text-slate-100"
-              >
-                ×
-              </button>
-            </div>
+      <DownloadDialog
+        action={manifest?.actions?.download}
+        open={downloadOpen}
+        onClose={() => setDownloadOpen(false)}
+      />
 
-            <div className="mt-6">
-              {downloadUrl ? (
-                <a href={downloadUrl} className={downloadLinkClass}>
-                  点击下载压缩包
-                </a>
-              ) : (
-                <PasswordDialog
-                  onSuccess={(url) => {
-                    setDownloadUrl(url);
-                    setShowPasswordDialog(false);
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <PhotoDetailDialog photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} />
+
+      <AlbumDetailDialog album={selectedAlbum} onClose={() => setSelectedAlbum(null)} onSelectPhoto={handleSelectPhotoFromAlbum} />
     </div>
   );
 }

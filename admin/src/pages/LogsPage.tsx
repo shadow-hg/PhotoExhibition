@@ -24,7 +24,7 @@ export const LogsPage = () => {
           <Empty description="暂无访问记录" />
         ) : (
           <Table
-            rowKey={(record) => `${record.timestamp}-${record.ip ?? 'unknown'}`}
+            rowKey={(record) => `${record.timestamp}-${record.ip ?? 'unknown'}-${record.event ?? 'view'}`}
             dataSource={logs}
             pagination={{ pageSize: 20 }}
             columns={[
@@ -32,6 +32,11 @@ export const LogsPage = () => {
                 title: '时间',
                 dataIndex: 'timestamp',
                 render: (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss')
+              },
+              {
+                title: '事件',
+                dataIndex: 'event',
+                render: (value: string) => <Tag color="purple">{value ?? 'view'}</Tag>
               },
               {
                 title: '页面',
@@ -44,11 +49,25 @@ export const LogsPage = () => {
                 render: (value: string) => value ?? '未知'
               },
               {
+                title: '来源',
+                dataIndex: 'referrer',
+                render: (value: string) => value ?? '—'
+              },
+              {
                 title: 'User-Agent',
                 dataIndex: 'userAgent',
                 render: (value: string) => (
                   <Typography.Paragraph style={{ margin: 0 }} ellipsis={{ rows: 2 }}>
                     {value}
+                  </Typography.Paragraph>
+                )
+              },
+              {
+                title: '元数据',
+                dataIndex: 'metadata',
+                render: (value: Record<string, unknown>) => (
+                  <Typography.Paragraph style={{ margin: 0 }} ellipsis={{ rows: 2 }}>
+                    {value ? JSON.stringify(value) : '—'}
                   </Typography.Paragraph>
                 )
               }

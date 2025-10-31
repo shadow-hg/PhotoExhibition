@@ -1,10 +1,18 @@
-﻿import express from 'express';
+import express from 'express';
 import CryptoJS from 'crypto-js';
 import { randomUUID } from 'node:crypto';
 import { createOSSClient, appendLog, readText } from '../utils/oss';
-import { getConfig, getCachedConfig, updateConfig } from '../services/configService';
-import { getPhotosByGroup, processUpload } from '../services/photoService';
-import type { SiteConfig, TrackPayload } from '../types';
+import { getManifest, getCachedManifest, updateManifest } from '../services/configService';
+import { processUpload } from '../services/photoService';
+import {
+  buildAdminDashboard,
+  buildGalleryResponse,
+  findAlbumBySlug,
+  findPhotoById,
+  resolveFeaturedPhotos,
+  resolveSpotlightAlbums
+} from '../services/galleryService';
+import type { SiteManifest, TrackPayload } from '../types';
 import { isLocalMode } from '../services/runtime';
 import { appendLocalLog, readLocalText, toLocalStaticUrl } from '../services/localFs';
 
@@ -66,101 +74,197 @@ const requireAdmin = (req: express.Request, res: express.Response, next: express
   return next();
 };
 
-router.get('/getConfig', async (_req, res) => {
-  try {
-    const config = await getConfig();
-    res.json(config);
-  } catch (error) {
-    res.status(500).json({ message: (error as Error).message });
-  }
-});
-
-router.get('/getPhotos', async (req, res) => {
-  try {
-    const slug = String(req.query.path ?? '').trim();
-    if (!slug) {
-      return res.status(400).json({ message: 'Missing path parameter' });
+const collectSearchable = (manifest: SiteManifest) => {
+  const entries: Array<{
+    album: string;
+    albumName: string;
+    photo: SiteManifest['albums'][number]['photos'][number];
+  }> = [];
+  for (const album of manifest.albums) {
+    for (const photo of album.photos ?? []) {
+      entries.push({ album: album.slug, albumName: album.name, photo });
     }
-
-    const config = await getCachedConfig();
-    const normalizedSlug = slug.toLowerCase();
-    const fromConfig = config.gallery.find((group) => {
-      const candidate = group.slug ?? group.name;
-      return candidate.toLowerCase() === normalizedSlug;
-    });
-
-    if (fromConfig) {
-      return res.json({ photos: fromConfig.photos });
-    }
-
-    const photos = await getPhotosByGroup(slug);
-    res.json({ photos });
-  } catch (error) {
-    res.status(500).json({ message: (error as Error).message });
   }
-});
+  return entries;
+};
 
-router.post('/verify', async (req, res) => {
-  if (!isValidHash(DOWNLOAD_HASH)) {
-    return res.status(500).json({ message: 'DOWNLOAD_PASSWORD_HASH is not configured' });
-  }
-
-  const { password } = req.body as { password?: string };
-  if (!password) {
-    return res.status(400).json({ valid: false, message: 'Missing password' });
-  }
-
-  const valid = hashText(password) === DOWNLOAD_HASH;
-  if (!valid) {
-    return res.status(401).json({ valid: false });
-  }
-
-  const config = await getCachedConfig();
-  const download = config.actions?.download;
-
-  if (!download) {
-    return res.status(404).json({ valid: true, message: 'Download link is not configured' });
-  }
-
-  const normalizedDownload = download.replace(/\\/g, '/');
-
+const resolveDownloadUrl = async (href: string) => {
+  const normalized = href.replace(/\\/g, '/');
   if (isLocalMode()) {
-    const hasProtocol = /^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//.test(normalizedDownload);
+    const hasProtocol = /^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//.test(normalized);
     const localPrefix = 'local://';
 
-    if (normalizedDownload.startsWith('oss://')) {
-      return res.status(400).json({
-        valid: true,
-        message: 'Local mode does not support oss:// download targets. Use a relative path or explicit URL.'
-      });
+    if (normalized.startsWith('oss://')) {
+      throw new Error('Local mode does not support oss:// download targets. Use a relative path or explicit URL.');
     }
 
-    const resolved = normalizedDownload.startsWith(localPrefix)
-      ? toLocalStaticUrl(normalizedDownload.slice(localPrefix.length))
-      : hasProtocol
-      ? normalizedDownload
-      : toLocalStaticUrl(normalizedDownload);
+    if (normalized.startsWith(localPrefix)) {
+      return toLocalStaticUrl(normalized.slice(localPrefix.length));
+    }
 
-    return res.json({ valid: true, url: resolved });
+    if (hasProtocol) {
+      return normalized;
+    }
+
+    return toLocalStaticUrl(normalized);
   }
 
   const oss = createOSSClient();
-  const signedUrl = normalizedDownload.startsWith('oss://')
-    ? (() => {
-        const [, pathPart = ''] = normalizedDownload.replace('oss://', '').split(/\/(.+)/);
-        return oss.signatureUrl(pathPart ?? '');
-      })()
-    : normalizedDownload;
+  if (normalized.startsWith('oss://')) {
+    const [, pathPart = ''] = normalized.replace('oss://', '').split(/\/(.+)/);
+    return oss.signatureUrl(pathPart ?? '');
+  }
 
-  res.json({ valid: true, url: signedUrl });
+  return normalized;
+};
+
+router.get('/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+router.get('/gallery/manifest', async (_req, res) => {
+  try {
+    const manifest = await getManifest();
+    const response = buildGalleryResponse(manifest);
+    res.json(response);
+  } catch (error) {
+    res.status(500).json({ message: (error as Error).message });
+  }
+});
+
+router.get('/gallery/albums/:slug', async (req, res) => {
+  try {
+    const slug = String(req.params.slug ?? '');
+    const manifest = await getCachedManifest();
+    const album = findAlbumBySlug(manifest, slug);
+    if (!album) {
+      return res.status(404).json({ message: '未找到对应的图集' });
+    }
+
+    const relatedAlbums = resolveSpotlightAlbums(manifest).filter((item) => item.slug !== album.slug);
+    const featuredPhotos = resolveFeaturedPhotos(manifest).filter((photo) => album.photos.every((p) => p.id !== photo.id));
+
+    res.json({
+      album,
+      stats: {
+        totalPhotos: album.photos.length,
+        totalFavorites: album.photos.filter((photo) => photo.hero || (photo.rating ?? 0) >= 4).length,
+        totalLocations: new Set(album.photos.map((photo) => photo.location).filter(Boolean)).size,
+        totalTags: new Set(album.photos.flatMap((photo) => photo.tags ?? [])).size
+      },
+      relatedAlbums,
+      featuredPhotos: featuredPhotos.slice(0, 6)
+    });
+  } catch (error) {
+    res.status(500).json({ message: (error as Error).message });
+  }
+});
+
+router.get('/gallery/photos/:id', async (req, res) => {
+  try {
+    const id = String(req.params.id ?? '');
+    if (!id) {
+      return res.status(400).json({ message: '缺少照片编号' });
+    }
+    const manifest = await getCachedManifest();
+    const photo = findPhotoById(manifest, id);
+    if (!photo) {
+      return res.status(404).json({ message: '未找到对应的照片' });
+    }
+    const album = manifest.albums.find((item) => item.photos.some((p) => p.id === id));
+    res.json({ photo, album });
+  } catch (error) {
+    res.status(500).json({ message: (error as Error).message });
+  }
+});
+
+router.get('/gallery/search', async (req, res) => {
+  try {
+    const manifest = await getCachedManifest();
+    const entries = collectSearchable(manifest);
+    const query = String(req.query.q ?? '').trim().toLowerCase();
+    const tag = String(req.query.tag ?? '').trim().toLowerCase();
+    const camera = String(req.query.camera ?? '').trim().toLowerCase();
+    const location = String(req.query.location ?? '').trim().toLowerCase();
+    const year = req.query.year ? Number(req.query.year) : undefined;
+
+    const matches = entries.filter(({ photo }) => {
+      if (query) {
+        const haystack = [photo.title, photo.description, ...(photo.tags ?? [])]
+          .join(' ')
+          .toLowerCase();
+        if (!haystack.includes(query)) {
+          return false;
+        }
+      }
+      if (tag && !(photo.tags ?? []).some((item) => item.toLowerCase() === tag)) {
+        return false;
+      }
+      if (camera && (photo.camera ?? '').toLowerCase() !== camera) {
+        return false;
+      }
+      if (location && (photo.location ?? '').toLowerCase() !== location) {
+        return false;
+      }
+      if (year) {
+        const capturedYear = photo.capturedAt ? new Date(photo.capturedAt).getUTCFullYear() : undefined;
+        if (capturedYear !== year) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const limit = Number(req.query.limit ?? 50);
+
+    res.json({
+      total: matches.length,
+      results: matches.slice(0, limit).map(({ album, albumName, photo }) => ({
+        album,
+        albumName,
+        photo
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ message: (error as Error).message });
+  }
+});
+
+router.post('/gallery/download-link', async (req, res) => {
+  try {
+    const manifest = await getCachedManifest();
+    const action = manifest.actions?.download;
+    if (!action) {
+      return res.status(404).json({ message: '未配置下载链接' });
+    }
+
+    if (action.requirePassword) {
+      if (!isValidHash(DOWNLOAD_HASH)) {
+        return res.status(500).json({ message: 'DOWNLOAD_PASSWORD_HASH 未配置' });
+      }
+      const { password } = req.body as { password?: string };
+      if (!password) {
+        return res.status(400).json({ valid: false, message: '缺少密码' });
+      }
+      if (hashText(password) !== DOWNLOAD_HASH) {
+        return res.status(401).json({ valid: false, message: '密码错误' });
+      }
+    }
+
+    const url = await resolveDownloadUrl(action.href);
+    res.json({ valid: true, url, description: action.description });
+  } catch (error) {
+    res.status(500).json({ message: (error as Error).message });
+  }
 });
 
 router.post('/track', async (req, res) => {
   try {
-    const payload = {
+    const payload: TrackPayload = {
       ...req.body,
       ip: req.headers['x-forwarded-for'] ?? req.socket.remoteAddress,
       timestamp: new Date().toISOString(),
+      userAgent: req.headers['user-agent']
     };
     if (isLocalMode()) {
       await appendLocalLog('logs/access.log', `${JSON.stringify(payload)}\n`);
@@ -173,6 +277,7 @@ router.post('/track', async (req, res) => {
     res.status(500).json({ message: (error as Error).message });
   }
 });
+
 router.post('/admin/login', (req, res) => {
   if (!isValidHash(ADMIN_HASH)) {
     return res.status(500).json({ message: 'ADMIN_PASSWORD_HASH 未配置' });
@@ -195,6 +300,16 @@ router.post('/admin/login', (req, res) => {
   });
 });
 
+router.get('/admin/dashboard', requireAdmin, async (_req, res) => {
+  try {
+    const manifest = await getCachedManifest();
+    const dashboard = buildAdminDashboard(manifest);
+    res.json(dashboard);
+  } catch (error) {
+    res.status(500).json({ message: (error as Error).message });
+  }
+});
+
 router.post('/admin/upload', requireAdmin, async (req, res) => {
   try {
     const { objectKey } = req.body as { objectKey?: string };
@@ -209,18 +324,18 @@ router.post('/admin/upload', requireAdmin, async (req, res) => {
   }
 });
 
-router.post('/admin/updateConfig', requireAdmin, async (req, res) => {
+router.post('/admin/manifest', requireAdmin, async (req, res) => {
   try {
-    const payload = req.body as SiteConfig;
+    const payload = req.body as SiteManifest;
     payload.updatedAt = new Date().toISOString();
-    const config = await updateConfig(payload);
-    res.json(config);
+    const manifest = await updateManifest(payload);
+    res.json(manifest);
   } catch (error) {
     res.status(500).json({ message: (error as Error).message });
   }
 });
 
-router.get('/admin/listLogs', requireAdmin, async (req, res) => {
+router.get('/admin/logs', requireAdmin, async (_req, res) => {
   try {
     const content = isLocalMode()
       ? await readLocalText('logs/access.log')
@@ -236,6 +351,5 @@ router.get('/admin/listLogs', requireAdmin, async (req, res) => {
     res.status(500).json({ message: (error as Error).message });
   }
 });
+
 export default router;
-
-
